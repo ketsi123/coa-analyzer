@@ -2348,7 +2348,7 @@ async function exportPDF(){
   return pdf.output('datauristring').split(',')[1]||'';
 }
 
-const GAS_URL='https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnSYvIacXTvj5vDDSanjLgeRw07mjPgp4YdBXW2bAc_iR9OIZeyTeBrETmzSZtP8-HSAGn_BkqciOiy10nN5Rq5XCHQga0nPabZ_glWPNwKOCM6DaUm1dYpUfqANPqzy2PeKH2skkemZr0c7_0zHMj-G82HQkU2zTzBty9XqDo74NqfuziAS9vxDB8pD7JoLcjNP8WYqZL9UzBFx3Jix2P894nsfICYD6VZDAjkZ32LXuG8wNCydMKnE1uKnIUuiMuC60U8i01R60L6Rjn9W9uZsWR-39g&lib=M6R_8T09QqB_od7o4z2j8z2JVDnvcOu80';
+const GAS_URL='https://script.google.com/macros/s/AKfycbzFaceKxVuRmPbz0l-JsXYGE1AkMJGLH1orwCYwiY5ECWdYo-tbFdwBNqi5GpPFKid_5g/exec';
 
 // ── ส่งข้อมูล record ขึ้น Google Sheets (ไม่มี PDF) ──────
 async function pushToSheet(record){
