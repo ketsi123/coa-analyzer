@@ -8,73 +8,76 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Kanit:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-// ── Supplier searchable dropdown ──────────────────────────
-(function initSupplierDrop(){
-  const supTrigger=document.getElementById('supTrigger');
-  const supDrop=document.getElementById('supplierDropdown');
-  const supSearch=document.getElementById('supSearch');
-  const supList=document.getElementById('supList');
-  const supInput=document.getElementById('sigSupplier');
-  const supTrigTxt=document.getElementById('supTriggerText');
-  if(!supTrigger) return;
-  let supOpen=false;
+// ── Supplier + BU init (รอ DOM พร้อมก่อน) ────────────────
+document.addEventListener('DOMContentLoaded', function(){
 
-  function renderSupList(q){
-    const matches=(q?SUPPLIERS.filter(s=>s.toLowerCase().includes(q.toLowerCase())):SUPPLIERS).slice(0,25);
-    supList.innerHTML='';
-    matches.forEach(s=>{
-      const item=document.createElement('div');
-      item.style.cssText='padding:12px 16px;cursor:pointer;font-size:14px;color:var(--text)';
-      item.textContent=s;
-      item.addEventListener('mouseenter',()=>item.style.background='var(--bg)');
-      item.addEventListener('mouseleave',()=>item.style.background='');
-      item.addEventListener('mousedown',e=>{
-        e.preventDefault();
-        supInput.value=s;
-        supTrigTxt.textContent=s;
-        supTrigTxt.style.color='var(--text)';
-        supDrop.style.display='none'; supOpen=false;
-        buildCert();
+  // ── Supplier searchable dropdown ──────────────────────────
+  (function initSupplierDrop(){
+    const supTrigger=document.getElementById('supTrigger');
+    const supDrop=document.getElementById('supplierDropdown');
+    const supSearch=document.getElementById('supSearch');
+    const supList=document.getElementById('supList');
+    const supInput=document.getElementById('sigSupplier');
+    const supTrigTxt=document.getElementById('supTriggerText');
+    if(!supTrigger) return;
+    let supOpen=false;
+
+    function renderSupList(q){
+      const matches=(q?SUPPLIERS.filter(s=>s.toLowerCase().includes(q.toLowerCase())):SUPPLIERS).slice(0,25);
+      supList.innerHTML='';
+      matches.forEach(s=>{
+        const item=document.createElement('div');
+        item.style.cssText='padding:12px 16px;cursor:pointer;font-size:14px;color:var(--text)';
+        item.textContent=s;
+        item.addEventListener('mouseenter',()=>item.style.background='var(--bg)');
+        item.addEventListener('mouseleave',()=>item.style.background='');
+        item.addEventListener('mousedown',e=>{
+          e.preventDefault();
+          supInput.value=s;
+          supTrigTxt.textContent=s;
+          supTrigTxt.style.color='var(--text)';
+          supDrop.style.display='none'; supOpen=false;
+          buildCert();
+        });
+        supList.appendChild(item);
       });
-      supList.appendChild(item);
-    });
-  }
-
-  supTrigger.addEventListener('click',()=>{
-    if(supOpen){supDrop.style.display='none';supOpen=false;}
-    else{supDrop.style.display='block';supOpen=true;supSearch.value='';renderSupList('');setTimeout(()=>supSearch.focus(),50);}
-  });
-  supSearch.addEventListener('input',()=>renderSupList(supSearch.value));
-  document.addEventListener('click',e=>{
-    if(supOpen&&!supTrigger.contains(e.target)&&!supDrop.contains(e.target)){supDrop.style.display='none';supOpen=false;}
-  });
-})();
-
-// ── BU Department selector ────────────────────────────────
-(function initBUSelector(){
-  let currentDept='';
-  function selectDept(dept){
-    currentDept=dept;
-    const microBtn=document.getElementById('deptMicro');
-    const chemBtn=document.getElementById('deptChem');
-    const buSel=document.getElementById('sigBU');
-    const buSelected=document.getElementById('buSelected');
-    if(microBtn) microBtn.style.cssText='flex:1;padding:8px;font-size:13px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;'+(dept==='Micro'?'background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700':'background:var(--white)');
-    if(chemBtn) chemBtn.style.cssText='flex:1;padding:8px;font-size:13px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;'+(dept==='Chem'?'background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700':'background:var(--white)');
-    if(buSel){
-      buSel.innerHTML='<option value="">— เลือก BU —</option>';
-      BU_LIST[dept].forEach(bu=>{const o=document.createElement('option');o.value=dept+' - '+bu;o.textContent=bu;buSel.appendChild(o);});
-      buSel.style.display='block';
     }
-    if(buSelected) buSelected.textContent='Department: '+dept;
-    buildCert();
-  }
-  document.getElementById('deptMicro')?.addEventListener('click',()=>selectDept('Micro'));
-  document.getElementById('sbHistBtn')?.addEventListener('click',showHistPage);
-  document.getElementById('sbDashBtn')?.addEventListener('click',showDashPage);
-  document.getElementById('deptChem')?.addEventListener('click',()=>selectDept('Chem'));
-  document.getElementById('sigBU')?.addEventListener('change',buildCert);
-})();
+
+    supTrigger.addEventListener('click',()=>{
+      if(supOpen){supDrop.style.display='none';supOpen=false;}
+      else{supDrop.style.display='block';supOpen=true;supSearch.value='';renderSupList('');setTimeout(()=>supSearch.focus(),50);}
+    });
+    supSearch.addEventListener('input',()=>renderSupList(supSearch.value));
+    document.addEventListener('click',e=>{
+      if(supOpen&&!supTrigger.contains(e.target)&&!supDrop.contains(e.target)){supDrop.style.display='none';supOpen=false;}
+    });
+  })();
+
+  // ── BU Department selector ──────────────────────────────
+  (function initBUSelector(){
+    function selectDept(dept){
+      const microBtn=document.getElementById('deptMicro');
+      const chemBtn=document.getElementById('deptChem');
+      const buSel=document.getElementById('sigBU');
+      const buSelected=document.getElementById('buSelected');
+      if(microBtn) microBtn.style.cssText='flex:1;padding:8px;font-size:13px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;'+(dept==='Micro'?'background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700':'background:var(--white)');
+      if(chemBtn) chemBtn.style.cssText='flex:1;padding:8px;font-size:13px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;'+(dept==='Chem'?'background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700':'background:var(--white)');
+      if(buSel){
+        buSel.innerHTML='<option value="">— เลือก BU —</option>';
+        BU_LIST[dept].forEach(bu=>{const o=document.createElement('option');o.value=dept+' - '+bu;o.textContent=bu;buSel.appendChild(o);});
+        buSel.style.display='block';
+      }
+      if(buSelected) buSelected.textContent='Department: '+dept;
+      buildCert();
+    }
+    document.getElementById('deptMicro')?.addEventListener('click',()=>selectDept('Micro'));
+    document.getElementById('deptChem')?.addEventListener('click',()=>selectDept('Chem'));
+    document.getElementById('sbHistBtn')?.addEventListener('click',showHistPage);
+    document.getElementById('sbDashBtn')?.addEventListener('click',showDashPage);
+    document.getElementById('sigBU')?.addEventListener('change',buildCert);
+  })();
+
+}); // end DOMContentLoaded
 
 // ── History functions ─────────────────────────────────────
 function showHistPage(){
