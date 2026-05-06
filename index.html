@@ -1005,11 +1005,11 @@ body::before{
         <div class="sig-grid">
           <div class="field-group">
             <div class="field-label">ชื่อ-นามสกุล ผู้ตรวจสอบ <span style="color:var(--fail)">*</span></div>
-            <input class="field-input" id="sigName" placeholder="เช่น นางสาวสมใจ ใจดี" type="text" oninput="buildCert()">
+            <input class="field-input" id="sigName" placeholder="เช่น นางสาวสมใจ ใจดี" type="text" autocomplete="off" oninput="buildCert()">
           </div>
           <div class="field-group">
             <div class="field-label">ตำแหน่ง / แผนก <span style="color:var(--fail)">*</span></div>
-            <input class="field-input" id="sigPos" placeholder="เช่น QC Officer / แผนก QA" type="text" oninput="buildCert()">
+            <input class="field-input" id="sigPos" placeholder="เช่น QC Officer / แผนก QA" type="text" autocomplete="off" oninput="buildCert()">
           </div>
           <div class="field-group">
             <div class="field-label">หน่วยงาน / รหัส</div>
@@ -1188,6 +1188,7 @@ body::before{
         <div class="done-title">เสร็จสิ้น! เอกสารได้รับการรับรองแล้ว</div>
         <div class="done-sub">กดปุ่มด้านล่างเพื่อดาวน์โหลด PDF A4 จำนวน 2 หน้า (COA ต้นฉบับ + ใบรับรอง)</div>
         <div class="done-actions">
+          <button class="btn btn-g" onclick="goStep(6)">← &nbsp;แก้ไขข้อมูล</button>
           <button class="btn btn-p" id="dlBtn" onclick="handleDownload()">📥 &nbsp;Download PDF (A4)</button>
           <button class="btn btn-g" onclick="startOver()">🔄 &nbsp;ตรวจสอบใบใหม่</button>
         </div>
@@ -1288,6 +1289,12 @@ window.addEventListener('DOMContentLoaded',()=>{
   // date defaults
   const today=new Date().toISOString().split('T')[0];
   document.getElementById('sigDate').value=today;
+  // ล้างช่องทุกครั้งที่โหลดหน้า (ป้องกัน browser autofill)
+  document.getElementById('sigName').value='';
+  document.getElementById('sigPos').value='';
+  document.getElementById('sigLot').value='';
+  document.getElementById('sigNote').value='';
+  document.getElementById('sigDocId').value='';
   // cert doc number
   document.getElementById('certNo').textContent='COA'+Date.now().toString().slice(-6);
 });
@@ -1989,13 +1996,20 @@ function buildCert(){
 
 /* ══ Finish & Export ══ */
 function finishAndExport(){
-  // บันทึกประวัติ
-  try{
-    const items=(analysisResult?.items||[]).map(it=>({param:it.param,spec:it.spec,found_value:it.found_value,status:it.status}));
-    const record={id:Date.now(),date:new Date().toISOString().split('T')[0],ts:new Date().toISOString(),template:sel?.name||'—',overall:analysisResult?.overall||'—',total:items.length,pass_count:items.filter(i=>i.status==='PASS').length,fail_count:items.filter(i=>i.status!=='PASS').length,inspector:document.getElementById('sigName')?.value||'',supplier:document.getElementById('sigSupplier')?.value||'',bu:document.getElementById('sigBU')?.value||'',items};
-    saveHistory([...getHistory(),record]);
-    updateHistCount();
-  }catch(e){console.warn('history save error',e);}
+  // ── Validation ก่อนไปหน้าสุดท้าย ──────────────────────
+  const missing=[];
+  if(!document.getElementById('sigName').value.trim()) missing.push('ชื่อ-นามสกุลผู้ตรวจสอบ');
+  if(!document.getElementById('sigPos').value.trim())  missing.push('ตำแหน่ง / แผนก');
+  if(!document.getElementById('sigSupplier').value)    missing.push('Supplier / บริษัท');
+  if(!document.getElementById('sigBU').value)          missing.push('BU / Department');
+  if(!document.getElementById('sigDate').value)        missing.push('วันที่ตรวจสอบ');
+  if(!document.getElementById('sigLot').value.trim())  missing.push('Lot No.');
+  const hasSig = sigImgData || (()=>{try{const c=document.getElementById('sigCanvas');return c&&c.getContext('2d').getImageData(0,0,c.width,c.height).data.some(v=>v!==0);}catch(e){return false;}})();
+  if(!hasSig) missing.push('ลายชื่อผู้ตรวจสอบ');
+  if(missing.length>0){
+    alert('กรุณากรอกข้อมูลให้ครบก่อนไปขั้นตอนถัดไป:\n\n• '+missing.join('\n• '));
+    return;
+  }
   buildCert();
   goStep(7);
 }
