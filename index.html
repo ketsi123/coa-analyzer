@@ -997,11 +997,11 @@ body::before{
       <div class="sig-card">
         <div class="sig-grid">
           <div class="field-group">
-            <div class="field-label">ชื่อ-นามสกุล ผู้ตรวจสอบ</div>
+            <div class="field-label">ชื่อ-นามสกุล ผู้ตรวจสอบ <span style="color:var(--fail)">*</span></div>
             <input class="field-input" id="sigName" placeholder="เช่น นางสาวสมใจ ใจดี" type="text" oninput="buildCert()">
           </div>
           <div class="field-group">
-            <div class="field-label">ตำแหน่ง / แผนก</div>
+            <div class="field-label">ตำแหน่ง / แผนก <span style="color:var(--fail)">*</span></div>
             <input class="field-input" id="sigPos" placeholder="เช่น QC Officer / แผนก QA" type="text" oninput="buildCert()">
           </div>
           <div class="field-group">
@@ -1009,7 +1009,7 @@ body::before{
             <input class="field-input" id="sigId" value="LAB" placeholder="เช่น LAB, QA, QC" type="text" oninput="buildCert()">
           </div>
           <div class="field-group">
-            <div class="field-label">🏭 Supplier / บริษัท</div>
+            <div class="field-label">🏭 Supplier / บริษัท <span style="color:var(--fail)">*</span></div>
             <div style="position:relative">
               <div id="supTrigger" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1.5px solid var(--border2);border-radius:8px;background:var(--white);cursor:pointer;font-size:14px;color:var(--text);user-select:none">
                 <span id="supTriggerText" style="color:var(--faint)">— เลือก Supplier —</span>
@@ -1029,7 +1029,7 @@ body::before{
             </div>
           </div>
           <div class="field-group">
-            <div class="field-label">🏢 BU / Department</div>
+            <div class="field-label">🏢 BU / Department <span style="color:var(--fail)">*</span></div>
             <div style="display:flex;gap:8px;margin-bottom:8px">
               <button type="button" id="deptMicro" style="flex:1;padding:8px;font-size:13px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;background:var(--white)">🧫 Micro</button>
               <button type="button" id="deptChem" style="flex:1;padding:8px;font-size:13px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;background:var(--white)">⚗️ Chem</button>
@@ -1038,12 +1038,20 @@ body::before{
             <div id="buSelected" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
           </div>
           <div class="field-group">
-            <div class="field-label">วันที่ตรวจสอบ</div>
+            <div class="field-label">วันที่ตรวจสอบ <span style="color:var(--fail)">*</span></div>
             <input class="field-input" id="sigDate" type="date" oninput="buildCert()">
           </div>
+          <div class="field-group">
+            <div class="field-label">🔢 Doc ID <span style="font-size:11px;color:var(--muted)">(สร้างอัตโนมัติ)</span></div>
+            <input class="field-input" id="sigDocId" type="text" readonly style="background:var(--bg);color:var(--blue);font-family:var(--mono);font-size:13px;font-weight:600;cursor:default">
+          </div>
+          <div class="field-group">
+            <div class="field-label">📦 Lot No. <span style="color:var(--fail)">*</span></div>
+            <input class="field-input" id="sigLot" placeholder="เช่น LOT2604001, BL-2026-042" type="text" oninput="buildCert()">
+          </div>
           <div class="field-group" style="grid-column:1/-1">
-            <div class="field-label">หมายเหตุ / Note (ไม่บังคับ)</div>
-            <textarea class="field-input" id="sigNote" rows="2" placeholder="เช่น รับสารเคมีเข้าสต็อกวันที่ 20/04/26, Lot นี้ใช้สำหรับโปรเจกต์ X..." oninput="buildCert()" style="resize:vertical;font-family:var(--font);font-size:13px;line-height:1.6"></textarea>
+            <div class="field-label">หมายเหตุ / Note <span style="font-size:11px;color:var(--muted)">(ไม่บังคับ — เช่น วันที่รับใบ Cer, โปรเจกต์ที่ใช้)</span></div>
+            <textarea class="field-input" id="sigNote" rows="2" placeholder="เช่น รับใบ Cer วันที่ 20/04/26, Lot นี้ใช้สำหรับโปรเจกต์ X..." oninput="buildCert()" style="resize:vertical;font-family:var(--font);font-size:13px;line-height:1.6"></textarea>
           </div>
         </div>
 
@@ -1330,7 +1338,13 @@ function goStep(n){
   if(n===2)loadEditor();
   if(n===3)renderSpecPreview();
   if(n===5)buildStamp();
-  if(n===6)buildCert();
+  if(n===6){
+    // Generate Doc ID ถ้ายังไม่มี
+    if(!document.getElementById('sigDocId').value){
+      document.getElementById('sigDocId').value=generateDocId();
+    }
+    buildCert();
+  }
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -2397,8 +2411,23 @@ async function handleDownload(){
   st.style.display='block';
   st.textContent='⏳ กำลังสร้าง PDF...';
 
+  // ── Validation ─────────────────────────────────────────────
+  const missing=[];
+  if(!document.getElementById('sigName').value.trim()) missing.push('ชื่อ-นามสกุลผู้ตรวจสอบ');
+  if(!document.getElementById('sigPos').value.trim())  missing.push('ตำแหน่ง / แผนก');
+  if(!document.getElementById('sigSupplier').value)    missing.push('Supplier / บริษัท');
+  if(!document.getElementById('sigBU').value)          missing.push('BU / Department');
+  if(!document.getElementById('sigDate').value)        missing.push('วันที่ตรวจสอบ');
+  if(!document.getElementById('sigLot').value.trim())  missing.push('Lot No.');
+  const hasSig = sigImgData || (()=>{try{const c=document.getElementById('sigCanvas');return c&&c.getContext('2d').getImageData(0,0,c.width,c.height).data.some(v=>v!==0);}catch(e){return false;}})();
+  if(!hasSig) missing.push('ลายชื่อผู้ตรวจสอบ');
+  if(missing.length>0){
+    alert('กรุณากรอกข้อมูลให้ครบก่อน Export:\n\n• '+missing.join('\n• '));
+    btn.disabled=false;
+    return;
+  }
+
   try{
-    // ── 1. สร้าง PDF และ download ────────────────────────
     const pdfBase64 = await exportPDF();
     btn.textContent='☁️ กำลังอัปโหลดขึ้น Drive...';
     st.textContent='☁️ กำลังส่งข้อมูลขึ้น Google Sheets & Drive...';
@@ -2424,12 +2453,14 @@ async function handleDownload(){
       dept      : document.getElementById('sigId')?.value||'LAB',
       supplier  : document.getElementById('sigSupplier')?.value||'',
       bu        : buVal,
+      doc_id    : document.getElementById('sigDocId')?.value||'',
+      lot_no    : document.getElementById('sigLot')?.value||'',
       note      : document.getElementById('sigNote')?.value||'',
       summary   : analysisResult?.summary||'',
       items
     };
 
-    const fname=`COA_${record.date.replace(/-/g,'')}_${(buVal||'BU').replace(/[^a-zA-Z0-9]/g,'_')}_${(sel?.name||'COA').replace(/[\s/]/g,'_').slice(0,20)}_${record.overall}.pdf`;
+    const fname=`${record.doc_id||'COA'}_${record.date.replace(/-/g,'')}_${(buVal||'BU').replace(/[^a-zA-Z0-9]/g,'_')}_${(sel?.name||'COA').replace(/[\s/]/g,'_').slice(0,20)}_${record.overall}.pdf`;
 
     // ── 3. ส่งขึ้น GAS (ไม่รอ — background) ─────────────
     // ใช้ no-cors เพราะ GAS ไม่รองรับ CORS header จาก external domain
@@ -2462,39 +2493,53 @@ async function handleDownload(){
   btn.disabled=false;
 }
 
+// ── Generate running Doc ID ───────────────────────────────
+function generateDocId(){
+  const year=new Date().getFullYear();
+  const key='coa_docid_'+year;
+  let seq=parseInt(localStorage.getItem(key)||'0')+1;
+  localStorage.setItem(key,seq);
+  return 'COA-'+year+'-'+String(seq).padStart(4,'0');
+}
+
 function startOver(){
   sel=null;specs=[];rid=0;img64=null;coaCanvas=null;analysisResult=null;curCat='all';
   document.getElementById('prevBox').style.display='none';
   document.getElementById('prevImg').src='';
-  // Reset COA file input
-  const fi=document.getElementById('fi');
-  fi.value='';
-  // Reset form fields
+  const fi=document.getElementById('fi'); fi.value='';
+  // ล้างทุกช่อง
   document.getElementById('sigName').value='';
   document.getElementById('sigPos').value='';
   document.getElementById('sigId').value='LAB';
   document.getElementById('sigNote').value='';
+  document.getElementById('sigLot').value='';
   document.getElementById('sigDate').value=new Date().toISOString().split('T')[0];
-  // Reset signature — ทั้ง draw และ upload
-  clearSig();
-  clearSigUpload();
-  sigImgData=null;
-  // Reset sig file input
-  const sfi=document.getElementById('sigFileInput');
-  if(sfi) sfi.value='';
-  // กลับไป default tab = upload
+  // Reset Doc ID → generate ใหม่เมื่อถึง step 6
+  document.getElementById('sigDocId').value='';
+  // Reset Supplier
+  document.getElementById('sigSupplier').value='';
+  document.getElementById('supTriggerText').textContent='— เลือก Supplier —';
+  document.getElementById('supTriggerText').style.color='var(--faint)';
+  // Reset BU
+  document.getElementById('sigBU').innerHTML='<option value="">— เลือก BU —</option>';
+  document.getElementById('sigBU').style.display='none';
+  document.getElementById('buSelected').textContent='';
+  const microBtn=document.getElementById('deptMicro');
+  const chemBtn=document.getElementById('deptChem');
+  if(microBtn) microBtn.style.cssText='flex:1;padding:8px;font-size:13px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;background:var(--white)';
+  if(chemBtn)  chemBtn.style.cssText='flex:1;padding:8px;font-size:13px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;background:var(--white)';
+  // Reset signature
+  clearSig(); clearSigUpload(); sigImgData=null;
+  const sfi=document.getElementById('sigFileInput'); if(sfi) sfi.value='';
   switchSigTab('upload');
-  // Reset result panel
   document.getElementById('resultPanel')?.remove?.();
-  buildPills();renderGrid('all');
+  buildPills(); renderGrid('all');
   document.getElementById('toS2').disabled=true;
   document.getElementById('selInfo').textContent='ยังไม่ได้เลือก Template';
   document.getElementById('abtn').disabled=true;
-  // Reset done button
   const dlBtn=document.getElementById('dlBtn');
   if(dlBtn){dlBtn.disabled=false;dlBtn.textContent='📥  Download PDF (A4)';}
-  const dlSt=document.getElementById('dlStatus');
-  if(dlSt) dlSt.style.display='none';
+  const dlSt=document.getElementById('dlStatus'); if(dlSt) dlSt.style.display='none';
   goStep(1);
 }
 </script>
