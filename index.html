@@ -2352,14 +2352,12 @@ const GAS_URL='https://script.googleusercontent.com/macros/echo?user_content_key
 
 // ── ส่งข้อมูล record ขึ้น Google Sheets (ไม่มี PDF) ──────
 async function pushToSheet(record){
-  const res=await fetch(GAS_URL,{
+  await fetch(GAS_URL,{
     method:'POST',
+    mode:'no-cors',
     headers:{'Content-Type':'text/plain'},
     body:JSON.stringify({record, pdf_base64:'', pdf_filename:''})
   });
-  const data=await res.json();
-  if(data.error) throw new Error(data.error);
-  return data;
 }
 
 // ── ดึงประวัติทั้งหมดจาก Google Sheets ──────────────────
@@ -2434,21 +2432,15 @@ async function handleDownload(){
     const fname=`COA_${record.date.replace(/-/g,'')}_${(buVal||'BU').replace(/[^a-zA-Z0-9]/g,'_')}_${(sel?.name||'COA').replace(/[\s/]/g,'_').slice(0,20)}_${record.overall}.pdf`;
 
     // ── 3. ส่งขึ้น GAS (ไม่รอ — background) ─────────────
+    // ใช้ no-cors เพราะ GAS ไม่รองรับ CORS header จาก external domain
+    // no-cors = ส่งข้อมูลได้ แต่ไม่ได้รับ response กลับ (opaque response)
     fetch(GAS_URL,{
       method:'POST',
+      mode:'no-cors',
       headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({ record, pdf_base64: pdfBase64||'', pdf_filename: fname })
-    }).then(r=>r.json()).then(res=>{
-      if(res.success){
-        st.textContent='✅ บันทึกลง Google Sheets & Drive แล้ว'+(res.pdf_link?' — 🔗 ดู PDF':'');
-        // บันทึก pdf_link ลง history ด้วย
-        try{
-          const h=getHistory();
-          if(h.length>0){ h[h.length-1].pdf_link=res.pdf_link||''; saveHistory(h); }
-        }catch(e){}
-      } else {
-        st.textContent='⚠️ Upload ไม่สำเร็จ: '+(res.error||'unknown error');
-      }
+    }).then(()=>{
+      st.textContent='✅ ส่งข้อมูลขึ้น Google Sheets & Drive แล้ว';
     }).catch(err=>{
       st.textContent='⚠️ ไม่สามารถเชื่อม Google Sheets: '+err.message;
     });
