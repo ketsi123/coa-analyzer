@@ -6,7 +6,8 @@
 <title>COA Analyzer — ระบบตรวจสอบคุณภาพ AI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Kanit:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
 // ── Supplier searchable dropdown ──────────────────────────
 (function initSupplierDrop(){
   const supTrigger=document.getElementById('supTrigger');
@@ -2339,20 +2340,129 @@ async function exportPDF(){
 
   const fname = `COA_Report_${sel?.name?.replace(/[\s/]/g,'_')||'QC'}_${new Date().toISOString().slice(0,10)}.pdf`;
   pdf.save(fname);
+
+  // return base64 สำหรับส่งขึ้น GAS
+  return pdf.output('datauristring').split(',')[1]||'';
+}
+
+const GAS_URL='https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnSYvIacXTvj5vDDSanjLgeRw07mjPgp4YdBXW2bAc_iR9OIZeyTeBrETmzSZtP8-HSAGn_BkqciOiy10nN5Rq5XCHQga0nPabZ_glWPNwKOCM6DaUm1dYpUfqANPqzy2PeKH2skkemZr0c7_0zHMj-G82HQkU2zTzBty9XqDo74NqfuziAS9vxDB8pD7JoLcjNP8WYqZL9UzBFx3Jix2P894nsfICYD6VZDAjkZ32LXuG8wNCydMKnE1uKnIUuiMuC60U8i01R60L6Rjn9W9uZsWR-39g&lib=M6R_8T09QqB_od7o4z2j8z2JVDnvcOu80';
+
+// ── ส่งข้อมูล record ขึ้น Google Sheets (ไม่มี PDF) ──────
+async function pushToSheet(record){
+  const res=await fetch(GAS_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({record, pdf_base64:'', pdf_filename:''})
+  });
+  const data=await res.json();
+  if(data.error) throw new Error(data.error);
+  return data;
+}
+
+// ── ดึงประวัติทั้งหมดจาก Google Sheets ──────────────────
+async function pullFromSheet(){
+  try{
+    const res=await fetch(GAS_URL);
+    const data=await res.json();
+    if(!data.records) return null;
+    return data.records.map(r=>({
+      id        : r['ID'],
+      date      : r['วันที่'],
+      ts        : r['เวลา'],
+      template  : r['Template'],
+      category  : r['Category'],
+      overall   : r['Overall'],
+      total     : r['Total'],
+      pass_count: r['Pass'],
+      fail_count: r['Fail'],
+      inspector : r['Inspector'],
+      position  : r['Position'],
+      dept      : r['Dept'],
+      supplier  : r['Supplier'],
+      bu        : r['BU'],
+      note      : r['Note'],
+      summary   : r['Summary'],
+      pdf_link  : r['PDF_Link']||'',
+      items     : Array.isArray(r['Items_JSON'])?r['Items_JSON']:[]
+    }));
+  }catch(e){ console.warn('pullFromSheet error',e); return null; }
 }
 
 async function handleDownload(){
   const btn=document.getElementById('dlBtn');
   const st=document.getElementById('dlStatus');
-  btn.disabled=true; btn.textContent='⏳ กำลังสร้างไฟล์...';
+  btn.disabled=true;
+  btn.textContent='⏳ กำลังสร้าง PDF...';
   st.style.display='block';
+  st.textContent='⏳ กำลังสร้าง PDF...';
+
   try{
-    await exportPDF();
+    // ── 1. สร้าง PDF และ download ────────────────────────
+    const pdfBase64 = await exportPDF();
+    btn.textContent='☁️ กำลังอัปโหลดขึ้น Drive...';
+    st.textContent='☁️ กำลังส่งข้อมูลขึ้น Google Sheets & Drive...';
+
+    // ── 2. เตรียม record ─────────────────────────────────
+    const items=(analysisResult?.items||[]).map(it=>({
+      param:it.param, spec:it.spec,
+      found_value:it.found_value, status:it.status, note:it.note||''
+    }));
+    const buVal = document.getElementById('sigBU')?.value||'';
+    const record={
+      id        : Date.now(),
+      date      : document.getElementById('sigDate')?.value||new Date().toISOString().split('T')[0],
+      ts        : new Date().toISOString(),
+      template  : sel?.name||'—',
+      category  : sel?.cat||'',
+      overall   : analysisResult?.overall||'—',
+      total     : items.length,
+      pass_count: items.filter(i=>i.status==='PASS').length,
+      fail_count: items.filter(i=>i.status!=='PASS').length,
+      inspector : document.getElementById('sigName')?.value||'',
+      position  : document.getElementById('sigPos')?.value||'',
+      dept      : document.getElementById('sigId')?.value||'LAB',
+      supplier  : document.getElementById('sigSupplier')?.value||'',
+      bu        : buVal,
+      note      : document.getElementById('sigNote')?.value||'',
+      summary   : analysisResult?.summary||'',
+      items
+    };
+
+    const fname=`COA_${record.date.replace(/-/g,'')}_${(buVal||'BU').replace(/[^a-zA-Z0-9]/g,'_')}_${(sel?.name||'COA').replace(/[\s/]/g,'_').slice(0,20)}_${record.overall}.pdf`;
+
+    // ── 3. ส่งขึ้น GAS (ไม่รอ — background) ─────────────
+    fetch(GAS_URL,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({ record, pdf_base64: pdfBase64||'', pdf_filename: fname })
+    }).then(r=>r.json()).then(res=>{
+      if(res.success){
+        st.textContent='✅ บันทึกลง Google Sheets & Drive แล้ว'+(res.pdf_link?' — 🔗 ดู PDF':'');
+        // บันทึก pdf_link ลง history ด้วย
+        try{
+          const h=getHistory();
+          if(h.length>0){ h[h.length-1].pdf_link=res.pdf_link||''; saveHistory(h); }
+        }catch(e){}
+      } else {
+        st.textContent='⚠️ Upload ไม่สำเร็จ: '+(res.error||'unknown error');
+      }
+    }).catch(err=>{
+      st.textContent='⚠️ ไม่สามารถเชื่อม Google Sheets: '+err.message;
+    });
+
+    // ── 4. บันทึกลง localStorage ─────────────────────────
+    try{
+      saveHistory([...getHistory(), record]);
+      updateHistCount();
+    }catch(e){ console.warn('history save error',e); }
+
     btn.textContent='✅ ดาวน์โหลดสำเร็จ!';
-    st.textContent='✅ ไฟล์ PDF ถูกบันทึกในโฟลเดอร์ Downloads แล้ว';
+    st.textContent='✅ PDF ดาวน์โหลดแล้ว — กำลังซิงก์ขึ้น Drive...';
+
   }catch(e){
     btn.textContent='❌ เกิดข้อผิดพลาด';
     st.textContent='Error: '+e.message;
+    console.error(e);
   }
   btn.disabled=false;
 }
