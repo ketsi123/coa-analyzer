@@ -91,7 +91,9 @@ function showDashPage(){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('pgD').classList.add('active');
   window.scrollTo({top:0,behavior:'smooth'});
-  buildDashboard();
+  // sync จาก Sheets ก่อนแล้วค่อย build dashboard
+  document.getElementById('dashContent').innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ กำลังโหลดข้อมูลจาก Google Sheets...</div>';
+  syncFromSheet().then(()=>buildDashboard()).catch(()=>buildDashboard());
 }
 function updateHistCount(){
   const h=getHistory();
@@ -131,9 +133,20 @@ async function showHistoryPage(){
 async function syncFromSheet(){
   const sheetData=await pullFromSheet();
   const sb=document.getElementById('syncStatusBar');
-  if(!sheetData||!Array.isArray(sheetData)){if(sb){sb.textContent='💾 ใช้ข้อมูลเครื่องนี้';sb.style.color='var(--muted)';}renderHistory();return;}
-  const local=getHistory();const merged=[...sheetData];const ids=new Set(sheetData.map(r=>String(r.id)));local.forEach(r=>{if(!ids.has(String(r.id)))merged.push(r);});merged.sort((a,b)=>new Date(b.ts)-new Date(a.ts));saveHistory(merged);updateHistCount();
-  if(sb){sb.textContent=`☁️ โหลดสำเร็จ ${merged.length} รายการ`;sb.style.color='var(--pass)';}
+  if(!sheetData||!Array.isArray(sheetData)){
+    if(sb){sb.textContent='💾 ใช้ข้อมูลเครื่องนี้';sb.style.color='var(--muted)';}
+    renderHistory();
+    return;
+  }
+  // ใช้ Sheets เป็น source of truth + เพิ่มข้อมูล local ที่ยังไม่ sync
+  const local=getHistory();
+  const sheetIds=new Set(sheetData.map(r=>String(r.id)));
+  const onlyLocal=local.filter(r=>!sheetIds.has(String(r.id)));
+  const merged=[...sheetData,...onlyLocal];
+  merged.sort((a,b)=>new Date(b.ts||b.date)-new Date(a.ts||a.date));
+  saveHistory(merged);
+  updateHistCount();
+  if(sb){sb.textContent=`☁️ โหลดสำเร็จ ${sheetData.length} รายการจาก Sheets`;sb.style.color='var(--pass)';}
   renderHistory();
 }
 
