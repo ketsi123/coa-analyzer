@@ -81,13 +81,20 @@ document.addEventListener('DOMContentLoaded', function(){
 
 // ── History functions ─────────────────────────────────────
 function showHistPage(){
-  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
-  document.getElementById('pgH').style.display='block';
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pgH')?.classList.add('active');
+  [1,2,3,4,5,6,7].forEach(i=>{const p=document.getElementById('p'+i);if(p){p.classList.remove('active','done');}});
+  window.scrollTo({top:0,behavior:'smooth'});
   renderHistory();
+  const sb=document.getElementById('syncStatusBar');
+  if(sb){sb.textContent='⏳ กำลังดึงข้อมูลทีม...';sb.style.color='var(--blue)';}
+  syncFromSheet();
 }
 function showDashPage(){
-  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
-  document.getElementById('pgD').style.display='block';
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pgD')?.classList.add('active');
+  [1,2,3,4,5,6,7].forEach(i=>{const p=document.getElementById('p'+i);if(p){p.classList.remove('active','done');}});
+  window.scrollTo({top:0,behavior:'smooth'});
   buildDashboard();
 }
 function updateHistCount(){
@@ -834,8 +841,8 @@ body::before{
   
       <div style="margin-top:20px">
         <div class="sb-label">ประวัติ &amp; วิเคราะห์</div>
-        <button class="cb" id="sbHist" id="sbHistBtn">📋 ประวัติการตรวจ<span class="cc" id="histCount">0</span></button>
-        <button class="cb" id="sbDash" id="sbDashBtn">📊 Data Analysis</button>
+        <button class="cb" id="sbHistBtn" onclick="showHistPage()">📋 ประวัติการตรวจ<span class="cc" id="histCount">0</span></button>
+        <button class="cb" id="sbDashBtn" onclick="showDashPage()">📊 Data Analysis</button>
       </div>
     </aside>
 
