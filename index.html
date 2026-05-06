@@ -1199,6 +1199,7 @@ body::before{
     <div class="page" id="pgH">
       <div class="ph"><h2>📋 ประวัติการตรวจสอบ</h2><p>บันทึกอัตโนมัติหลัง Export PDF</p></div>
       <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-g" onclick="goStep(1)" style="font-size:13px">← หน้าหลัก</button>
         <button class="btn btn-g" onclick="syncHistory()" style="font-size:13px">🔄 Sync</button>
         <button class="btn btn-g" onclick="exportHistoryCSV()" style="font-size:13px">📥 Export CSV</button>
         <button class="btn btn-g" onclick="if(confirm('ล้างประวัติทั้งหมด?'))clearHistory()" style="font-size:13px;color:var(--fail)">🗑️ ล้าง</button>
@@ -1208,6 +1209,9 @@ body::before{
     <!-- Dashboard Page -->
     <div class="page" id="pgD">
       <div class="ph"><h2>📊 Data Analysis Dashboard</h2><p>วิเคราะห์แนวโน้มและสถิติ</p></div>
+      <div style="margin-bottom:12px">
+        <button class="btn btn-g" onclick="goStep(1)" style="font-size:13px">← หน้าหลัก</button>
+      </div>
       <div id="dashContent"></div>
     </div>
 </main>
@@ -1338,8 +1342,10 @@ function pick(id){
 /* ══ Step Nav ══ */
 function goStep(n){
   if(n>1&&!sel)return;
-  // Always recompute overall from manual overrides before stamp/cert
   if((n===5||n===6)&&analysisResult) recomputeOverall();
+  // ซ่อน pgH และ pgD ด้วย
+  document.getElementById('pgH')?.classList.remove('active');
+  document.getElementById('pgD')?.classList.remove('active');
   [1,2,3,4,5,6,7].forEach(i=>{
     document.getElementById('pg'+i)?.classList.toggle('active',i===n);
     const p=document.getElementById('p'+i);
@@ -1349,10 +1355,9 @@ function goStep(n){
   if(n===3)renderSpecPreview();
   if(n===5)buildStamp();
   if(n===6){
-    // สร้าง Doc ID และ Record ID เฉพาะครั้งแรก (ไม่สร้างซ้ำเมื่อย้อนกลับ)
     if(!document.getElementById('sigDocId').value){
       document.getElementById('sigDocId').value=generateDocId();
-      currentRecordId = Date.now(); // session record ID
+      currentRecordId = Date.now();
     }
     buildCert();
   }
