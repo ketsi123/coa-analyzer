@@ -1353,9 +1353,10 @@ function goStep(n){
   if(n===3)renderSpecPreview();
   if(n===5)buildStamp();
   if(n===6){
-    // Generate Doc ID ถ้ายังไม่มี
+    // สร้าง Doc ID และ Record ID เฉพาะครั้งแรก (ไม่สร้างซ้ำเมื่อย้อนกลับ)
     if(!document.getElementById('sigDocId').value){
       document.getElementById('sigDocId').value=generateDocId();
+      currentRecordId = Date.now(); // session record ID
     }
     buildCert();
   }
@@ -2460,7 +2461,7 @@ async function handleDownload(){
     }));
     const buVal = document.getElementById('sigBU')?.value||'';
     const record={
-      id        : Date.now(),
+      id        : currentRecordId || Date.now(),
       date      : document.getElementById('sigDate')?.value||new Date().toISOString().split('T')[0],
       ts        : new Date().toISOString(),
       template  : sel?.name||'—',
@@ -2515,6 +2516,9 @@ async function handleDownload(){
 }
 
 // ── Generate running Doc ID ───────────────────────────────
+// ── Session record ID (unique ต่อ 1 case — ไม่เปลี่ยนเมื่อย้อนกลับ) ──
+let currentRecordId = null;
+
 function generateDocId(){
   const year=new Date().getFullYear();
   const key='coa_docid_'+year;
@@ -2525,6 +2529,7 @@ function generateDocId(){
 
 function startOver(){
   sel=null;specs=[];rid=0;img64=null;coaCanvas=null;analysisResult=null;curCat='all';
+  currentRecordId=null; // reset session record ID
   document.getElementById('prevBox').style.display='none';
   document.getElementById('prevImg').src='';
   const fi=document.getElementById('fi'); fi.value='';
