@@ -1307,6 +1307,13 @@ function buildPills(){
 }
 function filterSb(id,el){
   curCat=id;
+  // ถ้าอยู่หน้า Dashboard/History ให้กลับหน้าหลักก่อน
+  if(document.getElementById('pgH').classList.contains('active')||
+     document.getElementById('pgD').classList.contains('active')){
+    document.getElementById('pgH').classList.remove('active');
+    document.getElementById('pgD').classList.remove('active');
+    document.getElementById('pg1').classList.add('active');
+  }
   document.querySelectorAll('.sidebar .cb').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   document.querySelectorAll('.cat-pill').forEach((b,i)=>b.classList.toggle('active',CATS[i].id===id));
