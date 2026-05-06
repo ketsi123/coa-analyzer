@@ -801,7 +801,7 @@ body::before{
   </nav>
 </header>
 
-<!-- API Key Bar -->
+<!-- API Key Bar (hidden — key hardcoded) -->
 <div class="api-bar" style="display:none">
   <span class="api-bar-label">🔑 API Key:</span>
   <div class="api-key-wrap">
@@ -1242,16 +1242,7 @@ let coaCanvas=null; // stores original COA canvas (no re-compression)
 
 /* ══ API Key ══ */
 function checkKey(){
-  const k=document.getElementById('apiKeyInput').value.trim();
-  const st=document.getElementById('apiStatus');
-  if(k.startsWith('sk-ant-')&&k.length>20){
-    st.className='api-status ok';st.textContent='✓ พร้อมใช้งาน';
-    localStorage.setItem('coa_api_key',k);
-  } else if(k.length>0){
-    st.className='api-status no';st.textContent='⚠ Key ไม่ถูกต้อง';
-  } else {
-    st.className='api-status no';st.textContent='⚠ ยังไม่ได้ใส่ Key';
-  }
+  // Key ฝังในโค้ดแล้ว — ไม่ต้องกรอก
   updAbtn();
 }
 function toggleEye(){
@@ -1260,13 +1251,12 @@ function toggleEye(){
   if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}
   else{inp.type='password';btn.textContent='👁';}
 }
-function getApiKey(){return document.getElementById('apiKeyInput').value.trim();}
+const HARDCODED_API_KEY='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';
+function getApiKey(){return HARDCODED_API_KEY;}
 
 /* ══ Init ══ */
 window.addEventListener('DOMContentLoaded',()=>{
-  // restore saved key
-  const saved=localStorage.getItem('coa_api_key');
-  if(saved){document.getElementById('apiKeyInput').value=saved;checkKey();}
+  // Key ฝังในโค้ดแล้ว — ไม่ต้อง restore จาก localStorage
   buildPills(); renderGrid('all');
   // file upload
   document.getElementById('fi').addEventListener('change',e=>{if(e.target.files[0])loadFile(e.target.files[0])});
@@ -1428,10 +1418,9 @@ async function loadFile(f){
   }
 }
 function updAbtn(){
-  const hasKey=document.getElementById('apiKeyInput').value.trim().length>10;
   const hasImg=!!img64;
   const hasSpec=specs.filter(s=>s.p&&s.v).length>0;
-  document.getElementById('abtn').disabled=!(hasKey&&hasImg&&hasSpec);
+  document.getElementById('abtn').disabled=!(hasImg&&hasSpec);
 }
 
 /* ══ Analyze ══ */
@@ -1478,10 +1467,10 @@ ${specText}
 {"overall":"PASS หรือ FAIL","items":[{"param":"ชื่อพารามิเตอร์","found_value":"ค่าที่พบในใบ COA","spec":"เงื่อนไข Spec","status":"PASS หรือ FAIL หรือ NOT_FOUND","note":"หมายเหตุภาษาไทยสั้นๆ"}],"summary":"สรุปผลภาษาไทย 2-3 ประโยค"}`;
 
   try{
-    const apiKey=document.getElementById('apiKeyInput').value.trim();
+    const apiKey=getApiKey();
     if(!apiKey){
       document.getElementById('loadCard').style.display='none';
-      alert('กรุณาใส่ Anthropic API Key ในแถบด้านบนก่อนวิเคราะห์');
+      alert('ไม่พบ API Key กรุณาติดต่อผู้ดูแลระบบ');
       document.getElementById('abtn').disabled=false;updAbtn();
       return;
     }
@@ -1774,7 +1763,7 @@ async function confirmTag(){
   loadEl.style.display='flex';
 
   // Ask AI to read only this crop
-  const apiKey=document.getElementById('apiKeyInput').value.trim();
+  const apiKey=getApiKey();
   const prompt=`อ่านค่าของ "${tagState.param}" จากรูปที่ crop มาให้
 Spec ที่ต้องเปรียบ: ${tagState.spec}
 
