@@ -391,11 +391,15 @@ function buildDashboard(){
   function renderParams(data,q){
     q=q||'';
     const pm={};data.forEach(r=>(r.items||[]).forEach(it=>{if(!pm[it.param])pm[it.param]={name:it.param,pass:0,fail:0,total:0};pm[it.param].total++;it.status==='PASS'?pm[it.param].pass++:pm[it.param].fail++;}));
-    let params=Object.values(pm).sort((a,b)=>b.total-a.total);
-    if(q)params=params.filter(p=>p.name.toLowerCase().includes(q.toLowerCase()));
-    params=params.slice(0,10);const max=params[0]?.total||1;
+    let allParams=Object.values(pm).sort((a,b)=>b.total-a.total);
+    let params=q?allParams.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())):allParams;
+    const max=allParams[0]?.total||1;
     const c=el.querySelector('#d-params');
-    c.innerHTML=params.length?params.map((p,i)=>{
+    // store full list for popup
+    c._allParams=allParams;c._max=max;
+    const show=params.slice(0,10);
+    const rest=q?[]:allParams.slice(10);
+    function pItemHtml(p,i){
       const col=p.fail>0?'#ef4444':'#22c55e';
       return `<div class="d-pitem${selParam===p.name?' sel':''}" data-p="${p.name}" onclick="window.__dashSelParam('${p.name.replace(/'/g,"\\'")}')">
         <div style="width:16px;font-size:11px;color:#94a3b8;text-align:center;flex-shrink:0">${i+1}</div>
@@ -403,8 +407,64 @@ function buildDashboard(){
         <div style="width:50px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;flex-shrink:0"><div style="width:${Math.round(p.total/max*100)}%;height:100%;background:${col};border-radius:2px"></div></div>
         <div style="font-size:11px;min-width:160px;text-align:right;flex-shrink:0;white-space:nowrap">${st(p.total,p.pass,p.fail)}</div>
       </div>`;
-    }).join(''):'<div style="font-size:12px;color:#94a3b8">ไม่พบข้อมูล</div>';
+    }
+    let html=show.length?show.map((p,i)=>pItemHtml(p,i)).join(''):'<div style="font-size:12px;color:#94a3b8">ไม่พบข้อมูล</div>';
+    if(!q&&rest.length>0){
+      html+=`<button onclick="window.__dashShowAllParams()" style="margin-top:8px;width:100%;padding:7px;border-radius:8px;border:1px dashed #cbd5e1;background:none;color:#64748b;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+        <i class="ti ti-chevron-down" aria-hidden="true"></i> ดูทั้งหมด ${allParams.length} parameter
+      </button>`;
+    }
+    c.innerHTML=html;
   }
+
+  // ── popup: parameter ทั้งหมด + search ────────────────────────
+  window.__dashShowAllParams=function(){
+    const c=el.querySelector('#d-params');
+    const allParams=c._allParams||[];const max=c._max||1;
+    const existing=document.getElementById('d-param-popup');if(existing)existing.remove();
+    const overlay=document.createElement('div');
+    overlay.id='d-param-popup';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML=`
+      <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+        <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:14px;font-weight:600;color:#0f172a">📋 Parameter ทั้งหมด (${allParams.length} รายการ)</div>
+          <button onclick="document.getElementById('d-param-popup').remove()" style="background:none;border:none;cursor:pointer;font-size:18px;color:#64748b;line-height:1">✕</button>
+        </div>
+        <div style="padding:12px 20px;border-bottom:1px solid #e2e8f0">
+          <div style="position:relative">
+            <i class="ti ti-search" aria-hidden="true" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:#94a3b8;pointer-events:none"></i>
+            <input id="d-ppop-search" type="text" placeholder="   พิมพ์ค้นหา parameter..." oninput="window.__dashParamPopSearch()"
+              style="width:100%;padding:8px 12px 8px 32px;font-size:13px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#0f172a">
+          </div>
+        </div>
+        <div id="d-ppop-list" style="overflow-y:auto;padding:8px 12px;flex:1"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+    window.__dashParamPopSearch();
+    setTimeout(()=>document.getElementById('d-ppop-search')?.focus(),100);
+  };
+
+  window.__dashParamPopSearch=function(){
+    const c=el.querySelector('#d-params');
+    const allParams=c._allParams||[];const max=c._max||1;
+    const q=(document.getElementById('d-ppop-search')?.value||'').toLowerCase();
+    const filtered=q?allParams.filter(p=>p.name.toLowerCase().includes(q)):allParams;
+    const listEl=document.getElementById('d-ppop-list');if(!listEl)return;
+    listEl.innerHTML=filtered.length?filtered.map((p,i)=>{
+      const col=p.fail>0?'#ef4444':'#22c55e';
+      const esc=p.name.replace(/'/g,"\\'");
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;margin-bottom:2px;border:1px solid transparent"
+        onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''"
+        onclick="document.getElementById('d-param-popup').remove();window.__dashSelParam('${esc}')">
+        <div style="width:20px;font-size:11px;color:#94a3b8;text-align:center;flex-shrink:0">${i+1}</div>
+        <div style="flex:1;font-size:13px;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+        <div style="width:50px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;flex-shrink:0"><div style="width:${Math.round(p.total/max*100)}%;height:100%;background:${col};border-radius:2px"></div></div>
+        <div style="font-size:11px;min-width:170px;text-align:right;white-space:nowrap">${st(p.total,p.pass,p.fail)}</div>
+      </div>`;
+    }).join(''):'<div style="font-size:12px;color:#94a3b8;padding:12px">ไม่พบข้อมูล</div>';
+  };
 
   // ── table ─────────────────────────────────────────────────────
   function renderTable(data){
