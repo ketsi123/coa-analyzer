@@ -238,7 +238,13 @@ function buildDashboard(){
     el.querySelectorAll('.d-brow.sel,.d-pitem.sel').forEach(e=>e.classList.remove('sel'));
     el.querySelector('#d-atag').style.display='none';
     el.querySelector('#d-pcol').style.display='none';
-    renderTable(getCurrent());
+    el.querySelector('#d-psrch').value='';
+    closeDrill();
+    const data=getCurrent();
+    renderBars('d-sub','supplier',groupBy(data,'supplier'));
+    renderBars('d-bub','bu',groupBy(data,'bu'));
+    renderParams(data,'');
+    renderTable(data);
   }
 
   function closeDrill(){el.querySelector('#d-drill').classList.remove('show');}
@@ -252,6 +258,10 @@ function buildDashboard(){
     el.querySelector('#d-pcol').textContent='ผล: '+n;
     el.querySelectorAll('.d-pitem').forEach(e=>e.classList.toggle('sel',e.dataset.p===n));
     el.querySelectorAll('.d-brow').forEach(e=>e.classList.remove('sel'));
+    // filter Supplier/BU cards ตาม records ที่มี parameter นั้น
+    const filteredByParam=getCurrent().filter(r=>(r.items||[]).some(it=>it.param===n));
+    renderBars('d-sub','supplier',groupBy(filteredByParam,'supplier'));
+    renderBars('d-bub','bu',groupBy(filteredByParam,'bu'));
     closeDrill();renderTable(getCurrent());
   }
 
@@ -263,8 +273,18 @@ function buildDashboard(){
     el.querySelector('#d-pcol').style.display='none';
     el.querySelectorAll('.d-brow').forEach(e=>e.classList.remove('sel'));
     el.querySelectorAll('.d-pitem').forEach(e=>e.classList.remove('sel'));
-    elem.classList.add('sel');
-    showDrill(key,val);renderTable(getCurrent());
+    if(elem)elem.classList.add('sel');
+    // filtered data for cross-card update
+    const filteredData=getCurrent().filter(r=>r[key]===val);
+    if(key==='supplier'){
+      renderBars('d-bub','bu',groupBy(filteredData,'bu'));
+    } else {
+      renderBars('d-sub','supplier',groupBy(filteredData,'supplier'));
+    }
+    renderParams(filteredData,'');
+    el.querySelector('#d-psrch').value='';
+    showDrill(key,val);
+    renderTable(getCurrent());
   }
 
   // ── drill-down ────────────────────────────────────────────────
