@@ -434,6 +434,11 @@ function buildDashboard(){
       #d-tbl th:hover{color:#0f172a}
       #d-tbl td{padding:9px 10px;border-bottom:0.5px solid #e2e8f0;color:#0f172a;vertical-align:middle}
       #d-tbl tr:last-child td{border-bottom:none}
+      .d-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+      .d-hint{font-size:11px;color:#3b82f6;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+      .d-card-clickable:hover .d-hint{opacity:1}
+      .d-card-clickable .d-brow{cursor:pointer}
+      .d-card-clickable:hover{cursor:default}
     `;
     document.head.appendChild(s);
   }
@@ -507,13 +512,13 @@ function buildDashboard(){
         <div id="d-dleg" style="flex:1"></div>
       </div>
     </div>
-    <div style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div class="d-card-clickable" style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
+      <div class="d-card-head">
         <div style="display:flex;align-items:center;gap:8px">
           <div style="width:28px;height:28px;border-radius:8px;background:#FAEEDA;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"><i class="ti ti-building-factory" style="color:#854F0B" aria-hidden="true"></i></div>
           <span style="font-size:13px;font-weight:500">ผลแยกตาม Supplier</span>
         </div>
-        <span style="font-size:11px;color:#3b82f6">คลิกดูรายละเอียด →</span>
+        <span class="d-hint">👆 คลิกแถวดูรายละเอียด</span>
       </div>
       <div id="d-sub"></div>
     </div>
@@ -521,23 +526,23 @@ function buildDashboard(){
 
   <!-- Row: BU + Params -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-    <div style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div class="d-card-clickable" style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
+      <div class="d-card-head">
         <div style="display:flex;align-items:center;gap:8px">
           <div style="width:28px;height:28px;border-radius:8px;background:#EAF3DE;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"><i class="ti ti-building" style="color:#3B6D11" aria-hidden="true"></i></div>
           <span style="font-size:13px;font-weight:500">ผลแยกตาม BU / LAB</span>
         </div>
-        <span style="font-size:11px;color:#3b82f6">คลิกดูรายละเอียด →</span>
+        <span class="d-hint">👆 คลิกแถวดูรายละเอียด</span>
       </div>
       <div id="d-bub"></div>
     </div>
-    <div style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div class="d-card-clickable" style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
+      <div class="d-card-head">
         <div style="display:flex;align-items:center;gap:8px">
           <div style="width:28px;height:28px;border-radius:8px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"><i class="ti ti-list-check" style="color:#185FA5" aria-hidden="true"></i></div>
           <span style="font-size:13px;font-weight:500">Parameter Top 10</span>
         </div>
-        <span style="font-size:11px;color:#3b82f6">คลิก → filter ตาราง</span>
+        <span class="d-hint">👆 คลิกแถวดู filter ตาราง</span>
       </div>
       <div style="position:relative;margin-bottom:8px">
         <i class="ti ti-search" aria-hidden="true" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;color:#94a3b8;pointer-events:none"></i>
