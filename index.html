@@ -91,9 +91,16 @@ function showDashPage(){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('pgD').classList.add('active');
   window.scrollTo({top:0,behavior:'smooth'});
-  // sync จาก Sheets ก่อนแล้วค่อย build dashboard
   document.getElementById('dashContent').innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ กำลังโหลดข้อมูลจาก Google Sheets...</div>';
-  syncFromSheet().then(()=>buildDashboard()).catch(()=>buildDashboard());
+  // ล้าง localStorage ก่อน แล้วโหลดจาก Sheets ใหม่ทั้งหมด
+  pullFromSheet().then(sheetData=>{
+    if(sheetData&&Array.isArray(sheetData)&&sheetData.length>0){
+      // ใช้ Sheets อย่างเดียว ไม่ merge กับ localStorage
+      saveHistory(sheetData.sort((a,b)=>new Date(b.ts||b.date)-new Date(a.ts||a.date)));
+      updateHistCount();
+    }
+    buildDashboard();
+  }).catch(()=>buildDashboard());
 }
 function updateHistCount(){
   const h=getHistory();
@@ -138,7 +145,8 @@ async function syncFromSheet(){
     renderHistory();
     return;
   }
-  // ใช้ Sheets เป็น source of truth + เพิ่มข้อมูล local ที่ยังไม่ sync
+  // Sheets คือ source of truth — ล้าง localStorage แล้วใช้ข้อมูลจาก Sheets อย่างเดียว
+  // บวกกับ local records ที่ยังไม่ได้ sync (เช่น ยังไม่ได้ export)
   const local=getHistory();
   const sheetIds=new Set(sheetData.map(r=>String(r.id)));
   const onlyLocal=local.filter(r=>!sheetIds.has(String(r.id)));
