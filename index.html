@@ -180,6 +180,11 @@ function exportHistoryCSV(){
   hist.forEach(r=>(r.items||[]).forEach(it=>rows.push([r.date,`"${r.template}"`,r.category,r.overall,r.total,r.pass_count,r.fail_count,`"${r.supplier||''}"`,`"${r.bu||''}"`,`"${r.inspector||''}"`,`"${r.position||''}"`,r.dept||'',`"${it.param}"`,`"${it.found_value}"`,`"${it.spec}"`,it.status].join(','))));
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'}));a.download=`COA_History_${new Date().toISOString().slice(0,10)}.csv`;a.click();
 }
+// ═══════════════════════════════════════
+//  COA Analyzer — Dashboard v7
+//  แทนที่ฟังก์ชัน buildDashboard() เดิม
+// ═══════════════════════════════════════
+
 function buildDashboard(){
   const allHist=getHistory();
   const el=document.getElementById('dashContent');
@@ -187,143 +192,437 @@ function buildDashboard(){
     el.innerHTML='<div style="text-align:center;padding:60px;color:var(--faint)">📊 ยังไม่มีข้อมูล<br><small>บันทึกอัตโนมัติหลัง Export PDF</small></div>';
     return;
   }
-  let fSup='all',fBU='all',fTm='all';
 
-  function getFiltered(){
-    return allHist.filter(r=>
-      (fSup==='all'||(r.supplier||'ไม่ระบุ')===fSup)&&
-      (fBU==='all'||(r.bu||'ไม่ระบุ')===fBU)&&
-      (fTm==='all'||r.template===fTm)
-    );
+  let fDept='all',fBU='all',fSup='all',fTm='all',fRes='all';
+  let selParam=null,selKey=null,selVal=null,sortK='date',sortD=-1;
+  let donutChart=null;
+
+  // ── stat html ─────────────────────────────────────────────────
+  function st(tot,p,f){
+    return `<span style="color:#64748b">รวม ${tot} ครั้ง</span>`
+      +`<span style="color:#cbd5e1;margin:0 3px">·</span>`
+      +`<span style="color:#16a34a">ผ่าน ${p}</span>`
+      +`<span style="color:#cbd5e1;margin:0 3px">·</span>`
+      +`<span style="color:${f>0?'#dc2626':'#94a3b8'}">ไม่ผ่าน ${f}</span>`;
   }
 
-  function renderDash(){
-    const hist=getFiltered();
-    const total=hist.length;
-    const pass=hist.filter(r=>r.overall==='PASS').length;
-    const pct=total?Math.round(pass/total*100):0;
-
-    // Parameter stats (ใช้ชื่อ property ที่ไม่ชนกัน)
-    const pmMap={};
-    hist.forEach(r=>(r.items||[]).forEach(it=>{
-      const k=it.param;
-      if(!pmMap[k])pmMap[k]={name:k,total:0,pass:0,fail:0,nf:0};
-      pmMap[k].total++;
-      if(it.status==='PASS')pmMap[k].pass++;
-      else if(it.status==='NOT_FOUND')pmMap[k].nf++;
-      else pmMap[k].fail++;
-    }));
-    const pmArr=Object.values(pmMap).map(v=>({...v,fp:Math.round((v.fail+v.nf)/v.total*100)})).sort((a,b)=>b.fp-a.fp);
-
-    // Supplier/BU/Template จาก allHist (ไม่ filter เพื่อให้ dropdown ครบ)
-    function buildMap(arr, keyFn){
-      const m={};
-      arr.forEach(r=>{const k=keyFn(r);if(!m[k])m[k]={name:k,total:0,pass:0};m[k].total++;if(r.overall==='PASS')m[k].pass++;});
-      return Object.values(m).sort((a,b)=>b.total-a.total);
-    }
-    const supArr=buildMap(allHist,r=>r.supplier||'ไม่ระบุ');
-    const buArr=buildMap(allHist,r=>r.bu||'ไม่ระบุ');
-    const tmArr=buildMap(allHist,r=>r.template);
-
-    el.innerHTML='';
-
-    // Filter bar
-    const fb=document.createElement('div');
-    fb.style.cssText='display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;padding:14px 16px;background:var(--white);border:1px solid var(--border);border-radius:var(--r);align-items:center';
-    const flbl=document.createElement('span');
-    flbl.style.cssText='font-size:13px;font-weight:700;color:var(--text)';
-    flbl.textContent='🔍 Filter:';
-    fb.appendChild(flbl);
-
-    function mkSel(label,opts,cur,onChange){
-      const w=document.createElement('div');w.style.cssText='display:flex;align-items:center;gap:6px';
-      const lb=document.createElement('span');lb.style.cssText='font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap';lb.textContent=label;
-      const s=document.createElement('select');s.style.cssText='padding:5px 10px;border:1.5px solid var(--border2);border-radius:6px;font-size:13px;color:var(--text);background:var(--white);cursor:pointer';
-      const ao=document.createElement('option');ao.value='all';ao.textContent='ทั้งหมด';s.appendChild(ao);
-      opts.forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;if(o===cur)op.selected=true;s.appendChild(op);});
-      s.addEventListener('change',()=>onChange(s.value));
-      w.appendChild(lb);w.appendChild(s);return w;
-    }
-    fb.appendChild(mkSel('Supplier:',supArr.map(s=>s.name),fSup,v=>{fSup=v;renderDash();}));
-    fb.appendChild(mkSel('BU/LAB:',buArr.map(b=>b.name),fBU,v=>{fBU=v;renderDash();}));
-    fb.appendChild(mkSel('Template:',tmArr.map(t=>t.name),fTm,v=>{fTm=v;renderDash();}));
-    const rb=document.createElement('button');rb.className='btn btn-g';rb.style.cssText='font-size:12px;padding:5px 14px;margin-left:auto';rb.textContent='↺ Reset';
-    rb.addEventListener('click',()=>{fSup='all';fBU='all';fTm='all';renderDash();});
-    fb.appendChild(rb);
-    el.appendChild(fb);
-
-    // Stats
-    const sg=document.createElement('div');sg.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px';
-    [{v:total,l:'LOT ทั้งหมด',c:'var(--blue)'},{v:pass+' ('+pct+'%)',l:'PASS',c:'var(--pass)'},{v:(total-pass)+' ('+(100-pct)+'%)',l:'FAIL',c:'var(--fail)'}].forEach(s=>{
-      const c=document.createElement('div');c.style.cssText='background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:20px;text-align:center';
-      const vd=document.createElement('div');vd.style.cssText='font-family:var(--fh);font-size:32px;font-weight:700;color:'+s.c;vd.textContent=s.v;
-      const ld=document.createElement('div');ld.style.cssText='font-size:12px;color:var(--muted);margin-top:4px';ld.textContent=s.l;
-      c.appendChild(vd);c.appendChild(ld);sg.appendChild(c);
+  // ── filter ────────────────────────────────────────────────────
+  function getCurrent(){
+    return allHist.filter(r=>{
+      if(fDept!=='all'&&!(r.bu||'').startsWith(fDept))return false;
+      if(fBU!=='all'&&(r.bu||'ไม่ระบุ')!==fBU)return false;
+      if(fSup!=='all'&&(r.supplier||'ไม่ระบุ')!==fSup)return false;
+      if(fTm!=='all'&&r.template!==fTm)return false;
+      if(fRes!=='all'&&r.overall!==fRes)return false;
+      return true;
     });
-    el.appendChild(sg);
-
-    // Bar helper
-    function mkBar(name,passN,totalN,onClick){
-      const pc=totalN?Math.round(passN/totalN*100):0;
-      const col=pc>=80?'var(--pass)':pc>=50?'var(--warn)':'var(--fail)';
-      const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px'+(onClick?';cursor:pointer':'');
-      if(onClick){row.title='คลิก filter: '+name;row.addEventListener('click',()=>onClick(name));}
-      const nm=document.createElement('div');nm.style.cssText='width:140px;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0';nm.title=name;nm.textContent=name;
-      const tr=document.createElement('div');tr.style.cssText='flex:1;height:16px;background:var(--bg2);border-radius:4px;overflow:hidden';
-      const fi=document.createElement('div');fi.style.cssText='height:100%;width:'+pc+'%;background:'+col+';border-radius:4px';
-      tr.appendChild(fi);
-      const pv=document.createElement('div');pv.style.cssText='width:38px;text-align:right;font-size:12px;color:'+col+';font-weight:700;flex-shrink:0';pv.textContent=pc+'%';
-      const sv=document.createElement('div');sv.style.cssText='font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0';sv.textContent='✅'+passN+' ❌'+(totalN-passN)+'/'+totalN;
-      row.appendChild(nm);row.appendChild(tr);row.appendChild(pv);row.appendChild(sv);
-      return row;
-    }
-
-    function mkPanel(title){
-      const p=document.createElement('div');p.style.cssText='background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:20px';
-      const h=document.createElement('h3');h.style.cssText='font-family:var(--fh);font-size:15px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px';h.textContent=title;
-      p.appendChild(h);return p;
-    }
-
-    // Grid 1: Template + Parameter
-    const g1=document.createElement('div');g1.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px';
-
-    const tp=mkPanel('🗂️ ผลแยกตาม Template');
-    const tmFil={};hist.forEach(r=>{if(!tmFil[r.template])tmFil[r.template]={name:r.template,total:0,pass:0};tmFil[r.template].total++;if(r.overall==='PASS')tmFil[r.template].pass++;});
-    const tmFilArr=Object.values(tmFil).sort((a,b)=>b.total-a.total);
-    if(!tmFilArr.length){const e=document.createElement('div');e.style.color='var(--faint)';e.textContent='ไม่มีข้อมูล';tp.appendChild(e);}
-    else tmFilArr.forEach(t=>tp.appendChild(mkBar(t.name,t.pass,t.total,v=>{fTm=fTm===v?'all':v;renderDash();})));
-    g1.appendChild(tp);
-
-    const pp=mkPanel('🔬 Parameter ที่มักไม่ผ่าน');
-    if(!pmArr.length){const e=document.createElement('div');e.style.color='var(--pass)';e.textContent='🎉 ทุก parameter ผ่านหมด!';pp.appendChild(e);}
-    else pmArr.slice(0,8).forEach(pm=>{
-      const row=document.createElement('div');row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-radius:6px;background:var(--fail-bg);border:1px solid var(--fail-br);margin-bottom:6px;font-size:13px';
-      const nm=document.createElement('span');nm.style.fontWeight='600';nm.textContent=pm.name;
-      const pv=document.createElement('span');pv.style.cssText='font-family:var(--mono);color:var(--fail);font-weight:700;font-size:12px';
-      pv.textContent='❌'+pm.fail+' ⚠️'+pm.nf+' /'+pm.total+' ('+pm.fp+'%)';
-      row.appendChild(nm);row.appendChild(pv);pp.appendChild(row);
-    });
-    g1.appendChild(pp);
-    el.appendChild(g1);
-
-    // Grid 2: Supplier + BU
-    const g2=document.createElement('div');g2.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px';
-    const spp=mkPanel('🏭 ผลแยกตาม Supplier');
-    if(!supArr.length){const e=document.createElement('div');e.style.color='var(--faint)';e.textContent='ยังไม่มีข้อมูล';spp.appendChild(e);}
-    else supArr.forEach(s=>spp.appendChild(mkBar(s.name,s.pass,s.total,v=>{fSup=fSup===v?'all':v;renderDash();})));
-    g2.appendChild(spp);
-    const bup=mkPanel('🏢 ผลแยกตาม BU / LAB');
-    if(!buArr.length){const e=document.createElement('div');e.style.color='var(--faint)';e.textContent='ยังไม่มีข้อมูล';bup.appendChild(e);}
-    else buArr.forEach(b=>bup.appendChild(mkBar(b.name,b.pass,b.total,v=>{fBU=fBU===v?'all':v;renderDash();})));
-    g2.appendChild(bup);
-    el.appendChild(g2);
-
-    // Export button
-    const eb=document.createElement('div');eb.style.cssText='text-align:right;margin-top:4px';
-    const btn=document.createElement('button');btn.className='btn btn-g';btn.style.cssText='font-size:13px;padding:9px 18px';btn.textContent='📥 Export CSV';
-    btn.addEventListener('click',exportHistoryCSV);eb.appendChild(btn);el.appendChild(eb);
   }
-  renderDash();
+
+  function groupBy(data,key){
+    const m={};
+    data.forEach(r=>{const k=r[key]||'ไม่ระบุ';if(!m[k])m[k]={name:k,pass:0,fail:0,total:0};m[k].total++;r.overall==='PASS'?m[k].pass++:m[k].fail++;});
+    return Object.values(m).sort((a,b)=>b.total-a.total);
+  }
+
+  // ── clear selection ───────────────────────────────────────────
+  function clearSel(){
+    selParam=null;selKey=null;selVal=null;
+    el.querySelectorAll('.d-brow.sel,.d-pitem.sel').forEach(e=>e.classList.remove('sel'));
+    el.querySelector('#d-atag').style.display='none';
+    el.querySelector('#d-pcol').style.display='none';
+    renderTable(getCurrent());
+  }
+
+  function closeDrill(){el.querySelector('#d-drill').classList.remove('show');}
+
+  function selectParam(n){
+    if(selParam===n){clearSel();return;}
+    selParam=n;selKey=null;selVal=null;
+    el.querySelector('#d-atag').style.display='flex';
+    el.querySelector('#d-atag-txt').textContent='Parameter: '+n;
+    el.querySelector('#d-pcol').style.display='';
+    el.querySelector('#d-pcol').textContent='ผล: '+n;
+    el.querySelectorAll('.d-pitem').forEach(e=>e.classList.toggle('sel',e.dataset.p===n));
+    el.querySelectorAll('.d-brow').forEach(e=>e.classList.remove('sel'));
+    closeDrill();renderTable(getCurrent());
+  }
+
+  function selectBar(key,val,elem){
+    if(selKey===key&&selVal===val){clearSel();return;}
+    selParam=null;selKey=key;selVal=val;
+    el.querySelector('#d-atag').style.display='flex';
+    el.querySelector('#d-atag-txt').textContent=(key==='supplier'?'Supplier':'BU')+': '+val;
+    el.querySelector('#d-pcol').style.display='none';
+    el.querySelectorAll('.d-brow').forEach(e=>e.classList.remove('sel'));
+    el.querySelectorAll('.d-pitem').forEach(e=>e.classList.remove('sel'));
+    elem.classList.add('sel');
+    showDrill(key,val);renderTable(getCurrent());
+  }
+
+  // ── drill-down ────────────────────────────────────────────────
+  function showDrill(key,val){
+    const data=getCurrent().filter(r=>r[key]===val);
+    const tp=data.filter(r=>r.overall==='PASS').length,tf=data.filter(r=>r.overall==='FAIL').length;
+    el.querySelector('#d-drill-title').textContent=(key==='supplier'?'🏭 ':'🏢 ')+val+' — รวม '+data.length+' ใบ · ผ่าน '+tp+' · ไม่ผ่าน '+tf;
+
+    function drillHtml(items,maxV,tKey){
+      if(!items.length)return '<div style="font-size:11px;color:#94a3b8;padding:8px 0">ไม่มีข้อมูล</div>';
+      return items.map(d=>{
+        const tot=d.t||d.p+d.f,p=d.p||0,f=d.f||0;
+        const col=f>0?'#ef4444':'#22c55e';
+        return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:0.5px solid #e2e8f0">
+          <div style="flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#0f172a" title="${d.n}">${d.n}</div>
+          <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;flex-shrink:0"><div style="width:${Math.round(tot/maxV*100)}%;height:100%;background:${col};border-radius:2px"></div></div>
+          <div style="font-size:11px;text-align:right;white-space:nowrap;min-width:130px">${st(tot,p,f)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    const pm={};data.forEach(r=>(r.items||[]).forEach(it=>{if(!pm[it.param])pm[it.param]={n:it.param,p:0,f:0};it.status==='PASS'?pm[it.param].p++:pm[it.param].f++;}));
+    const params=Object.values(pm).sort((a,b)=>(b.p+b.f)-(a.p+a.f)).slice(0,6);
+    el.querySelector('#d-dp').innerHTML=drillHtml(params,params[0]?params[0].p+params[0].f:1,'param');
+
+    const ok=key==='supplier'?'bu':'supplier';
+    el.querySelector('#d-dot').textContent=key==='supplier'?'🏢 BU / LAB':'🏭 Supplier';
+    const om={};data.forEach(r=>{const k=r[ok]||'ไม่ระบุ';if(!om[k])om[k]={n:k,p:0,f:0,t:0};om[k].t++;r.overall==='PASS'?om[k].p++:om[k].f++;});
+    const ov=Object.values(om).sort((a,b)=>b.t-a.t);
+    el.querySelector('#d-do').innerHTML=drillHtml(ov,ov[0]?.t||1,'other');
+
+    const tm={};data.forEach(r=>{const k=r.template||'ไม่ระบุ';if(!tm[k])tm[k]={n:k,p:0,f:0,t:0};tm[k].t++;r.overall==='PASS'?tm[k].p++:tm[k].f++;});
+    const tv=Object.values(tm).sort((a,b)=>b.t-a.t);
+    el.querySelector('#d-dt').innerHTML=drillHtml(tv,tv[0]?.t||1,'tpl');
+
+    el.querySelector('#d-drill').classList.add('show');
+    el.querySelector('#d-drill').scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+
+  // ── bars ──────────────────────────────────────────────────────
+  function renderBars(id,key,data){
+    const c=el.querySelector('#'+id);
+    if(!data.length){c.innerHTML='<div style="font-size:12px;color:#94a3b8;padding:8px 0">ไม่มีข้อมูล</div>';return;}
+    const max=Math.max(...data.map(d=>d.total));
+    c.innerHTML=data.map(d=>{
+      const pct=Math.round(d.pass/d.total*100),col=pct===100?'#22c55e':pct>=80?'#f59e0b':'#ef4444',tCol=pct===100?'#16a34a':pct>=80?'#d97706':'#dc2626';
+      const isSel=selKey===key&&selVal===d.name;
+      return `<div class="d-brow${isSel?' sel':''}" onclick="(function(el,k,v){
+        var rows=document.querySelectorAll('#dashContent .d-brow');
+        rows.forEach(function(r){r.classList.remove('sel')});
+        el.classList.add('sel');
+        window.__dashSelectBar(k,v,el);
+      })(this,'${key}','${d.name.replace(/'/g,"\\'").replace(/\n/g,'')}')">
+        <div class="d-blbl" title="${d.name}">${d.name}</div>
+        <div style="width:70px;height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden;flex-shrink:0">
+          <div style="width:${Math.round(d.total/max*100)}%;height:100%;background:${col};border-radius:4px"></div>
+        </div>
+        <div style="font-size:12px;font-weight:600;width:38px;text-align:right;flex-shrink:0;color:${tCol}">${pct}%</div>
+        <div style="font-size:11px;flex:1;padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${st(d.total,d.pass,d.fail)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── params ────────────────────────────────────────────────────
+  function renderParams(data,q){
+    q=q||'';
+    const pm={};data.forEach(r=>(r.items||[]).forEach(it=>{if(!pm[it.param])pm[it.param]={name:it.param,pass:0,fail:0,total:0};pm[it.param].total++;it.status==='PASS'?pm[it.param].pass++:pm[it.param].fail++;}));
+    let params=Object.values(pm).sort((a,b)=>b.total-a.total);
+    if(q)params=params.filter(p=>p.name.toLowerCase().includes(q.toLowerCase()));
+    params=params.slice(0,10);const max=params[0]?.total||1;
+    const c=el.querySelector('#d-params');
+    c.innerHTML=params.length?params.map((p,i)=>{
+      const col=p.fail>0?'#ef4444':'#22c55e';
+      return `<div class="d-pitem${selParam===p.name?' sel':''}" data-p="${p.name}" onclick="window.__dashSelParam('${p.name.replace(/'/g,"\\'")}')">
+        <div style="width:16px;font-size:11px;color:#94a3b8;text-align:center;flex-shrink:0">${i+1}</div>
+        <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#0f172a" title="${p.name}">${p.name}</div>
+        <div style="width:50px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;flex-shrink:0"><div style="width:${Math.round(p.total/max*100)}%;height:100%;background:${col};border-radius:2px"></div></div>
+        <div style="font-size:11px;min-width:160px;text-align:right;flex-shrink:0;white-space:nowrap">${st(p.total,p.pass,p.fail)}</div>
+      </div>`;
+    }).join(''):'<div style="font-size:12px;color:#94a3b8">ไม่พบข้อมูล</div>';
+  }
+
+  // ── table ─────────────────────────────────────────────────────
+  function renderTable(data){
+    let rows=selParam?data.filter(r=>(r.items||[]).some(it=>it.param===selParam)):selKey&&selVal?data.filter(r=>r[selKey]===selVal):data;
+    const sorted=[...rows].sort((a,b)=>{const av=a[sortK]||'',bv=b[sortK]||'';return av<bv?sortD:av>bv?-sortD:0;});
+    el.querySelector('#d-tbl-cnt').textContent=sorted.length+' รายการ';
+    const pH=el.querySelector('#d-pcol');
+    el.querySelector('#d-tbody').innerHTML=sorted.map(r=>{
+      const pi=selParam?(r.items||[]).find(it=>it.param===selParam):null;
+      const pc=pi?`<td style="font-size:11px;font-weight:500;color:${pi.status==='PASS'?'#16a34a':'#dc2626'};white-space:nowrap">${pi.status==='PASS'?'ผ่าน':'ไม่ผ่าน'}<br><span style="font-size:10px;font-weight:400;color:#64748b">${pi.value||''}</span></td>`:selParam?'<td style="color:#94a3b8">—</td>':'';
+      return `<tr>
+        <td style="font-family:monospace;font-size:11px;color:#185FA5">${r.doc_id||r.id||'—'}</td>
+        <td style="color:#64748b;white-space:nowrap;font-size:11px">${r.date||'—'}</td>
+        <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${r.template||'—'}</td>
+        <td style="white-space:nowrap;font-size:12px">${r.supplier||'—'}</td>
+        <td style="font-size:11px;white-space:nowrap">${r.bu||'—'}</td>
+        <td style="font-family:monospace;font-size:11px;color:#64748b">${r.lot_no||'—'}</td>
+        <td><span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;background:${r.overall==='PASS'?'#EAF3DE':'#FCEBEB'};color:${r.overall==='PASS'?'#3B6D11':'#A32D2D'}">${r.overall==='PASS'?'ผ่าน':'ไม่ผ่าน'}</span></td>
+        <td style="font-size:11px;white-space:nowrap">${st(r.total||0,r.pass_count||0,r.fail_count||0)}</td>
+        ${pc}
+        <td style="font-size:11px;color:#64748b">${r.inspector||'—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── main render ───────────────────────────────────────────────
+  function renderAll(){
+    const data=getCurrent();
+    const pass=data.filter(r=>r.overall==='PASS').length,fail=data.filter(r=>r.overall==='FAIL').length;
+    const sups=new Set(data.map(r=>r.supplier)).size,bus=new Set(data.map(r=>r.bu)).size;
+
+    el.querySelector('#d-kt').textContent=data.length;
+    el.querySelector('#d-kts').textContent='จาก '+bus+' BU';
+    el.querySelector('#d-kp').textContent=pass;
+    el.querySelector('#d-kpp').textContent=data.length?Math.round(pass/data.length*100)+'% ของทั้งหมด':'—';
+    el.querySelector('#d-kf').textContent=fail;
+    el.querySelector('#d-kfp').textContent=data.length?Math.round(fail/data.length*100)+'% ของทั้งหมด':'—';
+    el.querySelector('#d-ks').textContent=sups;
+    el.querySelector('#d-ksb').textContent=bus+' BU ที่ตรวจ';
+
+    if(donutChart)donutChart.destroy();
+    donutChart=new Chart(el.querySelector('#d-donut'),{
+      type:'doughnut',
+      data:{labels:['PASS','FAIL'],datasets:[{data:[pass,fail],backgroundColor:['#4CAF50','#EF5350'],borderWidth:0,hoverOffset:6,borderRadius:4,offset:[4,4]}]},
+      options:{responsive:false,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} ใบ (${data.length?Math.round(c.raw/data.length*100):0}%)`}}},animation:{animateRotate:true,duration:700}}
+    });
+    el.querySelector('#d-dleg').innerHTML=[{lbl:'PASS',val:pass,col:'#4CAF50'},{lbl:'FAIL',val:fail,col:'#EF5350'}].map(d=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:0.5px solid #e2e8f0">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:10px;height:10px;border-radius:3px;background:${d.col}"></div>
+          <span style="font-size:13px">${d.lbl}</span>
+        </div>
+        <span style="display:inline-flex;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;background:${d.col==='#4CAF50'?'#EAF3DE':'#FCEBEB'};color:${d.col==='#4CAF50'?'#3B6D11':'#A32D2D'}">${d.val} ใบ · ${data.length?Math.round(d.val/data.length*100):0}%</span>
+      </div>`).join('');
+
+    // BU dropdown ตาม dept
+    const buEl=el.querySelector('#d-fbu');
+    const curBU=buEl.value;
+    const buList=fDept==='all'?[...new Set(allHist.map(r=>r.bu||'ไม่ระบุ'))].sort():[...new Set(allHist.filter(r=>(r.bu||'').startsWith(fDept)).map(r=>r.bu||'ไม่ระบุ'))].sort();
+    buEl.innerHTML='<option value="all">ทั้งหมด</option>'+buList.map(b=>`<option value="${b}"${b===curBU?' selected':''}>${b}</option>`).join('');
+    if(!buList.includes(curBU))buEl.value='all';
+
+    renderBars('d-sub','supplier',groupBy(data,'supplier'));
+    renderBars('d-bub','bu',groupBy(data,'bu'));
+    renderParams(data,el.querySelector('#d-psrch').value);
+    if(selKey&&selVal)showDrill(selKey,selVal);
+    renderTable(data);
+  }
+
+  // ── inject CSS ────────────────────────────────────────────────
+  if(!document.getElementById('dash-css')){
+    const s=document.createElement('style');s.id='dash-css';
+    s.textContent=`
+      .d-brow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent;margin-bottom:2px;transition:background .12s}
+      .d-brow:hover{background:#f1f5f9}.d-brow.sel{background:#E6F1FB;border-color:#B8D4F5}
+      .d-blbl{font-size:12px;width:115px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:#0f172a}
+      .d-pitem{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent;margin-bottom:2px;transition:background .12s}
+      .d-pitem:hover{background:#f1f5f9}.d-pitem.sel{background:#E6F1FB;border-color:#B8D4F5}
+      #d-drill{background:#fff;border:1.5px solid #B8D4F5;border-radius:14px;padding:14px 16px;margin-bottom:12px;display:none}
+      #d-drill.show{display:block}
+      #d-drill-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+      .d-dc{background:#f8fafc;border-radius:10px;padding:12px}
+      .d-dc-ttl{font-size:11px;font-weight:500;color:#64748b;margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase}
+      #d-tbl tr:hover td{background:#f8fafc;cursor:pointer}
+      #d-tbl th{padding:8px 10px;font-size:11px;font-weight:500;color:#64748b;border-bottom:1px solid #e2e8f0;text-align:left;cursor:pointer;white-space:nowrap}
+      #d-tbl th:hover{color:#0f172a}
+      #d-tbl td{padding:9px 10px;border-bottom:0.5px solid #e2e8f0;color:#0f172a;vertical-align:middle}
+      #d-tbl tr:last-child td{border-bottom:none}
+    `;
+    document.head.appendChild(s);
+  }
+
+  // ── HTML ──────────────────────────────────────────────────────
+  el.innerHTML=`
+  <div style="padding-bottom:2rem">
+
+  <!-- Filter -->
+  <div style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:500;color:#64748b;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">DEPT</span>
+      <button id="d-dall" onclick="window.__dashDept('all')" style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid #185FA5;background:#185FA5;color:#fff;cursor:pointer">ALL</button>
+      <button id="d-dmicro" onclick="window.__dashDept('Micro')" style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;cursor:pointer">🧫 Micro</button>
+      <button id="d-dchem" onclick="window.__dashDept('Chem')" style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;cursor:pointer">⚗️ Chem</button>
+      <button onclick="window.__dashReset()" style="padding:5px 12px;border-radius:8px;font-size:12px;border:0.5px solid #e2e8f0;background:none;color:#64748b;cursor:pointer;margin-left:auto;display:flex;align-items:center;gap:5px">↺ Reset</button>
+    </div>
+    <div style="height:0.5px;background:#e2e8f0;margin-bottom:10px"></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:500;color:#64748b;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;flex-shrink:0">BU</span>
+      <select id="d-fbu" onchange="window.__dashFilt()" style="font-size:12px;padding:5px 10px;border-radius:8px;border:0.5px solid #e2e8f0;background:#fff;color:#0f172a;cursor:pointer;flex:1;min-width:0"><option value="all">ทั้งหมด</option></select>
+      <div style="width:0.5px;height:20px;background:#e2e8f0;flex-shrink:0"></div>
+      <span style="font-size:11px;font-weight:500;color:#64748b;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;flex-shrink:0">Supplier</span>
+      <select id="d-fsup" onchange="window.__dashFilt()" style="font-size:12px;padding:5px 10px;border-radius:8px;border:0.5px solid #e2e8f0;background:#fff;color:#0f172a;cursor:pointer;flex:1;min-width:0">
+        <option value="all">ทั้งหมด</option>
+        ${[...new Set(allHist.map(r=>r.supplier||'ไม่ระบุ'))].sort().map(s=>`<option>${s}</option>`).join('')}
+      </select>
+      <div style="width:0.5px;height:20px;background:#e2e8f0;flex-shrink:0"></div>
+      <span style="font-size:11px;font-weight:500;color:#64748b;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;flex-shrink:0">กลุ่มสินค้า</span>
+      <select id="d-ftm" onchange="window.__dashFilt()" style="font-size:12px;padding:5px 10px;border-radius:8px;border:0.5px solid #e2e8f0;background:#fff;color:#0f172a;cursor:pointer;flex:1;min-width:0">
+        <option value="all">ทั้งหมด</option>
+        ${[...new Set(allHist.map(r=>r.template||''))].filter(Boolean).sort().map(t=>`<option>${t}</option>`).join('')}
+      </select>
+      <div style="width:0.5px;height:20px;background:#e2e8f0;flex-shrink:0"></div>
+      <span style="font-size:11px;font-weight:500;color:#64748b;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;flex-shrink:0">ผล</span>
+      <select id="d-fres" onchange="window.__dashFilt()" style="font-size:12px;padding:5px 10px;border-radius:8px;border:0.5px solid #e2e8f0;background:#fff;color:#0f172a;cursor:pointer;max-width:110px">
+        <option value="all">ทั้งหมด</option><option value="PASS">PASS</option><option value="FAIL">FAIL</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+    ${[
+      {id:'kt',sub:'kts',col1:'#1565C0',col2:'#42A5F5',icon:'ti-file-certificate',lbl:'ใบ Certificate',sub0:'ทุก BU'},
+      {id:'kp',sub:'kpp',col1:'#2E7D32',col2:'#66BB6A',icon:'ti-circle-check',lbl:'ผ่านเกณฑ์ (PASS)',sub0:'—'},
+      {id:'kf',sub:'kfp',col1:'#B71C1C',col2:'#EF5350',icon:'ti-circle-x',lbl:'ไม่ผ่านเกณฑ์ (FAIL)',sub0:'—'},
+      {id:'ks',sub:'ksb',col1:'#E65100',col2:'#FFA726',icon:'ti-building-factory-2',lbl:'Supplier ที่ตรวจ',sub0:'—'},
+    ].map(k=>`
+      <div style="background:linear-gradient(135deg,${k.col1} 0%,${k.col2} 100%);border-radius:14px;padding:16px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-20px;right:-20px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.08)"></div>
+        <i class="ti ${k.icon}" style="font-size:22px;color:rgba(255,255,255,.5);display:block;margin-bottom:10px" aria-hidden="true"></i>
+        <div id="d-${k.id}" style="font-size:26px;font-weight:500;color:#fff">—</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px">${k.lbl}</div>
+        <div id="d-${k.sub}" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;font-weight:500">${k.sub0}</div>
+      </div>`).join('')}
+  </div>
+
+  <!-- Row: Donut + Supplier -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="width:28px;height:28px;border-radius:8px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"><i class="ti ti-chart-donut" style="color:#185FA5" aria-hidden="true"></i></div>
+        <span style="font-size:13px;font-weight:500">สัดส่วน PASS / FAIL</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:20px">
+        <div style="position:relative;width:130px;height:130px;flex-shrink:0">
+          <div style="position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);width:110px;height:12px;background:rgba(0,0,0,.1);border-radius:50%;filter:blur(5px)"></div>
+          <canvas id="d-donut" width="130" height="130"></canvas>
+        </div>
+        <div id="d-dleg" style="flex:1"></div>
+      </div>
+    </div>
+    <div style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:8px;background:#FAEEDA;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"><i class="ti ti-building-factory" style="color:#854F0B" aria-hidden="true"></i></div>
+          <span style="font-size:13px;font-weight:500">ผลแยกตาม Supplier</span>
+        </div>
+        <span style="font-size:11px;color:#3b82f6">คลิกดูรายละเอียด →</span>
+      </div>
+      <div id="d-sub"></div>
+    </div>
+  </div>
+
+  <!-- Row: BU + Params -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:8px;background:#EAF3DE;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"><i class="ti ti-building" style="color:#3B6D11" aria-hidden="true"></i></div>
+          <span style="font-size:13px;font-weight:500">ผลแยกตาม BU / LAB</span>
+        </div>
+        <span style="font-size:11px;color:#3b82f6">คลิกดูรายละเอียด →</span>
+      </div>
+      <div id="d-bub"></div>
+    </div>
+    <div style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:8px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"><i class="ti ti-list-check" style="color:#185FA5" aria-hidden="true"></i></div>
+          <span style="font-size:13px;font-weight:500">Parameter Top 10</span>
+        </div>
+        <span style="font-size:11px;color:#3b82f6">คลิก → filter ตาราง</span>
+      </div>
+      <div style="position:relative;margin-bottom:8px">
+        <i class="ti ti-search" aria-hidden="true" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;color:#94a3b8;pointer-events:none"></i>
+        <input id="d-psrch" type="text" placeholder="   ค้นหา parameter..." oninput="window.__dashParams()" style="width:100%;padding:6px 10px 6px 30px;font-size:12px;border:0.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#0f172a">
+      </div>
+      <div id="d-params"></div>
+    </div>
+  </div>
+
+  <!-- Drill panel -->
+  <div id="d-drill">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:500;color:#0f172a;display:flex;align-items:center;gap:7px">
+        <i class="ti ti-zoom-in" style="color:#185FA5" aria-hidden="true"></i>
+        <span id="d-drill-title">—</span>
+      </div>
+      <button onclick="window.__dashCloseDrill()" style="background:none;border:none;cursor:pointer;font-size:15px;color:#64748b"><i class="ti ti-x" aria-hidden="true"></i></button>
+    </div>
+    <div id="d-drill-grid">
+      <div class="d-dc"><div class="d-dc-ttl"><i class="ti ti-list-check" aria-hidden="true"></i> Parameter</div><div id="d-dp"></div></div>
+      <div class="d-dc"><div class="d-dc-ttl" id="d-dot">Supplier / BU</div><div id="d-do"></div></div>
+      <div class="d-dc"><div class="d-dc-ttl"><i class="ti ti-template" aria-hidden="true"></i> กลุ่มสินค้า</div><div id="d-dt"></div></div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div style="background:#fff;border:0.5px solid #e2e8f0;border-radius:14px;padding:16px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:28px;height:28px;border-radius:8px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"><i class="ti ti-table" style="color:#185FA5" aria-hidden="true"></i></div>
+        <span style="font-size:13px;font-weight:500">รายการทั้งหมด</span>
+      </div>
+      <div id="d-atag" style="display:none;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;background:#E6F1FB;color:#185FA5;border:1px solid #B8D4F5">
+        <i class="ti ti-filter" aria-hidden="true"></i><span id="d-atag-txt"></span>
+        <button onclick="window.__dashClearSel()" style="background:none;border:none;cursor:pointer;font-size:13px;color:#378ADD;line-height:1"><i class="ti ti-x" aria-hidden="true"></i></button>
+      </div>
+      <span id="d-tbl-cnt" style="font-size:11px;color:#64748b;margin-left:auto"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="d-tbl" style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr>
+          <th onclick="window.__dashSort('doc_id')">Doc ID ↕</th>
+          <th onclick="window.__dashSort('date')">วันที่ ↕</th>
+          <th>กลุ่มสินค้า</th>
+          <th onclick="window.__dashSort('supplier')">Supplier ↕</th>
+          <th onclick="window.__dashSort('bu')">BU ↕</th>
+          <th>Lot No.</th>
+          <th onclick="window.__dashSort('overall')">ผล ↕</th>
+          <th>รวม · ผ่าน · ไม่ผ่าน</th>
+          <th id="d-pcol" style="display:none"></th>
+          <th>ผู้ตรวจ</th>
+        </tr></thead>
+        <tbody id="d-tbody"></tbody>
+      </table>
+    </div>
+    <div style="text-align:right;margin-top:12px">
+      <button onclick="exportHistoryCSV()" style="padding:7px 16px;border-radius:8px;font-size:12px;border:0.5px solid #e2e8f0;background:none;color:#64748b;cursor:pointer">📥 Export CSV</button>
+    </div>
+  </div>
+  </div>`;
+
+  // ── wire up global handlers ────────────────────────────────────
+  window.__dashDept=function(d){
+    fDept=d;
+    el.querySelector('#d-dall').style.cssText=`padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid ${d==='all'?'#185FA5':'#e2e8f0'};background:${d==='all'?'#185FA5':'#f8fafc'};color:${d==='all'?'#fff':'#64748b'}`;
+    el.querySelector('#d-dmicro').style.cssText=`padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid ${d==='Micro'?'#3B6D11':'#e2e8f0'};background:${d==='Micro'?'#3B6D11':'#f8fafc'};color:${d==='Micro'?'#fff':'#64748b'}`;
+    el.querySelector('#d-dchem').style.cssText=`padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid ${d==='Chem'?'#854F0B':'#e2e8f0'};background:${d==='Chem'?'#854F0B':'#f8fafc'};color:${d==='Chem'?'#fff':'#64748b'}`;
+    fBU='all';renderAll();
+  };
+  window.__dashFilt=function(){
+    fBU=el.querySelector('#d-fbu').value;
+    fSup=el.querySelector('#d-fsup').value;
+    fTm=el.querySelector('#d-ftm').value;
+    fRes=el.querySelector('#d-fres').value;
+    renderAll();
+  };
+  window.__dashReset=function(){fDept='all';fBU='all';fSup='all';fTm='all';fRes='all';window.__dashDept('all');clearSel();renderAll();};
+  window.__dashSelParam=function(n){selectParam(n);};
+  window.__dashSelectBar=function(k,v,e){selectBar(k,v,e);};
+  window.__dashClearSel=function(){clearSel();};
+  window.__dashCloseDrill=function(){closeDrill();};
+  window.__dashSort=function(k){sortK===k?sortD*=-1:(sortK=k,sortD=-1);renderTable(getCurrent());};
+  window.__dashParams=function(){renderParams(getCurrent(),el.querySelector('#d-psrch').value);};
+
+  // ── load chart.js if needed ───────────────────────────────────
+  if(typeof Chart==='undefined'){
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+    s.onload=()=>renderAll();
+    document.head.appendChild(s);
+  } else {
+    renderAll();
+  }
 }
 updateHistCount();
 </script>
