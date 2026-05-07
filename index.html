@@ -304,29 +304,88 @@ function buildDashboard(){
     el.querySelector('#d-drill').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
 
-  // ── bars ──────────────────────────────────────────────────────
+  // ── bars (Top 5 + ดูทั้งหมด popup) ──────────────────────────
+  function barRowHtml(d,key,max){
+    const pct=Math.round(d.pass/d.total*100),col=pct===100?'#22c55e':pct>=80?'#f59e0b':'#ef4444',tCol=pct===100?'#16a34a':pct>=80?'#d97706':'#dc2626';
+    const isSel=selKey===key&&selVal===d.name;
+    const esc=d.name.replace(/'/g,"\\'").replace(/\n/g,'');
+    return `<div class="d-brow${isSel?' sel':''}" onclick="(function(el,k,v){document.querySelectorAll('#dashContent .d-brow').forEach(r=>r.classList.remove('sel'));el.classList.add('sel');window.__dashSelectBar(k,v,el);})(this,'${key}','${esc}')">
+      <div class="d-blbl" title="${d.name}">${d.name}</div>
+      <div style="width:70px;height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden;flex-shrink:0"><div style="width:${Math.round(d.total/max*100)}%;height:100%;background:${col};border-radius:4px"></div></div>
+      <div style="font-size:12px;font-weight:600;width:38px;text-align:right;flex-shrink:0;color:${tCol}">${pct}%</div>
+      <div style="font-size:11px;flex:1;padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${st(d.total,d.pass,d.fail)}</div>
+    </div>`;
+  }
+
   function renderBars(id,key,data){
     const c=el.querySelector('#'+id);
     if(!data.length){c.innerHTML='<div style="font-size:12px;color:#94a3b8;padding:8px 0">ไม่มีข้อมูล</div>';return;}
     const max=Math.max(...data.map(d=>d.total));
-    c.innerHTML=data.map(d=>{
-      const pct=Math.round(d.pass/d.total*100),col=pct===100?'#22c55e':pct>=80?'#f59e0b':'#ef4444',tCol=pct===100?'#16a34a':pct>=80?'#d97706':'#dc2626';
-      const isSel=selKey===key&&selVal===d.name;
-      return `<div class="d-brow${isSel?' sel':''}" onclick="(function(el,k,v){
-        var rows=document.querySelectorAll('#dashContent .d-brow');
-        rows.forEach(function(r){r.classList.remove('sel')});
-        el.classList.add('sel');
-        window.__dashSelectBar(k,v,el);
-      })(this,'${key}','${d.name.replace(/'/g,"\\'").replace(/\n/g,'')}')">
-        <div class="d-blbl" title="${d.name}">${d.name}</div>
-        <div style="width:70px;height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden;flex-shrink:0">
-          <div style="width:${Math.round(d.total/max*100)}%;height:100%;background:${col};border-radius:4px"></div>
-        </div>
-        <div style="font-size:12px;font-weight:600;width:38px;text-align:right;flex-shrink:0;color:${tCol}">${pct}%</div>
-        <div style="font-size:11px;flex:1;padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${st(d.total,d.pass,d.fail)}</div>
-      </div>`;
-    }).join('');
+    const top5=data.slice(0,5);
+    const rest=data.slice(5);
+    let html=top5.map(d=>barRowHtml(d,key,max)).join('');
+    if(rest.length>0){
+      html+=`<button onclick="window.__dashShowAll('${id}','${key}')" style="margin-top:8px;width:100%;padding:7px;border-radius:8px;border:1px dashed #cbd5e1;background:none;color:#64748b;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+        <i class="ti ti-chevron-down" aria-hidden="true"></i> ดูทั้งหมด ${data.length} รายการ
+      </button>`;
+    }
+    c.innerHTML=html;
+    // store full data for popup
+    c._fullData=data;c._key=key;c._max=max;
   }
+
+  // ── popup: ดูทั้งหมด + search ────────────────────────────────
+  window.__dashShowAll=function(id,key){
+    const c=el.querySelector('#'+id);
+    const allData=c._fullData||[];const max=c._max||1;
+    // สร้าง popup overlay
+    const existing=document.getElementById('d-all-popup');if(existing)existing.remove();
+    const overlay=document.createElement('div');
+    overlay.id='d-all-popup';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML=`
+      <div style="background:#fff;border-radius:16px;width:100%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+        <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:14px;font-weight:600;color:#0f172a">🏭 ${key==='supplier'?'Supplier':'BU / LAB'} ทั้งหมด (${allData.length} รายการ)</div>
+          <button onclick="document.getElementById('d-all-popup').remove()" style="background:none;border:none;cursor:pointer;font-size:18px;color:#64748b;line-height:1">✕</button>
+        </div>
+        <div style="padding:12px 20px;border-bottom:1px solid #e2e8f0">
+          <div style="position:relative">
+            <i class="ti ti-search" aria-hidden="true" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:#94a3b8;pointer-events:none"></i>
+            <input id="d-popup-search" type="text" placeholder="   พิมพ์ค้นหา..." oninput="window.__dashPopupSearch('${key}',${max})"
+              style="width:100%;padding:8px 12px 8px 32px;font-size:13px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#0f172a">
+          </div>
+        </div>
+        <div id="d-popup-list" style="overflow-y:auto;padding:8px 12px;flex:1"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+    // render list
+    window.__dashPopupSearch(key,max);
+    setTimeout(()=>document.getElementById('d-popup-search')?.focus(),100);
+  };
+
+  window.__dashPopupSearch=function(key,max){
+    const q=(document.getElementById('d-popup-search')?.value||'').toLowerCase();
+    const c=el.querySelector(key==='supplier'?'#d-sub':'#d-bub');
+    const allData=c?._fullData||[];
+    const filtered=q?allData.filter(d=>d.name.toLowerCase().includes(q)):allData;
+    const listEl=document.getElementById('d-popup-list');
+    if(!listEl)return;
+    listEl.innerHTML=filtered.length?filtered.map(d=>{
+      const pct=Math.round(d.pass/d.total*100),col=pct===100?'#22c55e':pct>=80?'#f59e0b':'#ef4444',tCol=pct===100?'#16a34a':pct>=80?'#d97706':'#dc2626';
+      const esc=d.name.replace(/'/g,"\\'").replace(/\n/g,'');
+      return `<div style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer;margin-bottom:2px;border:1px solid transparent"
+        onmouseover="this.style.background='#f1f5f9'"
+        onmouseout="this.style.background=''"
+        onclick="document.getElementById('d-all-popup').remove();document.querySelectorAll('#dashContent .d-brow').forEach(r=>r.classList.remove('sel'));window.__dashSelectBar('${key}','${esc}',null)">
+        <div style="flex:1;font-size:13px;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.name}</div>
+        <div style="width:70px;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;flex-shrink:0"><div style="width:${Math.round(d.total/max*100)}%;height:100%;background:${col};border-radius:3px"></div></div>
+        <div style="font-size:12px;font-weight:600;width:36px;text-align:right;flex-shrink:0;color:${tCol}">${pct}%</div>
+        <div style="font-size:11px;min-width:170px;text-align:right;white-space:nowrap">${st(d.total,d.pass,d.fail)}</div>
+      </div>`;
+    }).join(''):'<div style="font-size:12px;color:#94a3b8;padding:12px">ไม่พบข้อมูล</div>';
+  };
 
   // ── params ────────────────────────────────────────────────────
   function renderParams(data,q){
